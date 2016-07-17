@@ -2,20 +2,26 @@ import cv2
 import numpy as np
 
 for i in range(1,67):
-	frame = cv2.imread('frames/frame%03d.bmp'%i)
-	#gimg = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
+#for i in range(1,2):
+	frame = cv2.imread('blur/frame%03d.bmp'%i)
+	gimg = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
 	hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 	hue_avg = np.average(hsv[:,:,0])
+	b_avg = np.average(frame[:,:,0])
+	g_avg = np.average(frame[:,:,1])
+	r_avg = np.average(frame[:,:,2])
+	h_avg = cv2.cvtColor(np.uint8([[[b_avg,g_avg,r_avg]]]),cv2.COLOR_BGR2HSV)[0][0][0]
 	sat_avg = np.average(hsv[:,:,1])
 	print("sat:"+str(sat_avg))
-	print("hue:"+str(hue_avg))
-	lower_blue = np.array([hue_avg-7,sat_avg-60,127])
-	upper_blue = np.array([hue_avg+7,sat_avg+30,255])
+	print("hue:"+str(h_avg))
+	lower_blue = np.array([h_avg-2,sat_avg-50,127])
+	upper_blue = np.array([h_avg+2,sat_avg+30,255])
 	mask = cv2.inRange(hsv, lower_blue, upper_blue)
 	mask = cv2.bitwise_not(mask)
 	res = cv2.bitwise_and(frame,frame, mask=mask)
+	
 	maxr = 0
-	_,contours,h = cv2.findContours(mask,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
+	'''_,contours,h = cv2.findContours(mask,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
 	for cnt in contours:
 		maxr = 0
 		area = cv2.contourArea(cnt)
@@ -35,6 +41,9 @@ for i in range(1,67):
 				cv2.circle(res,center,radius,(127,0,255),3)
 		else:
 			cv2.drawContours(res,[cnt],0,(0,255,255),-1)
-	cv2.imwrite('frames_out/frame%03d.bmp'%i,res)
+		'''
+	#blur = cv2.bilateralFilter(frame,9,75,75)
+	#res = blur
+	cv2.imwrite('frame_out2/frame%03d.bmp'%i,res)
 	print('frame %u'%i)
 cv2.destroyAllWindows()
