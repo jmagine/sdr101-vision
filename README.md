@@ -1,6 +1,6 @@
-This project requires the following packages
+Requirements:
 
-Python 2.7.11
+Python 3.4
 OpenCV 3.1.0
-
-Running on Raspbian Jessie, on a Raspberry Pi 2 Model B
+Numpy
+PyDSM
