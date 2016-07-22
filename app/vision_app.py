@@ -8,18 +8,33 @@ import time
 from picamera.array import PiRGBArray
 from picamera import PiCamera
  
-# initialize the camera and grab a reference to the raw camera capture
-
-# allow the camera to warmup
-time.sleep(1)
 camera = PiCamera()
 rawCapture = PiRGBArray(camera)
- 
-# grab an image from the camera
-camera.capture(rawCapture, format="bgr")
-image = rawCapture.array
- 
-# display the image on screen and wait for a keypress
-cv.imshow("Image", image)
-cv.waitKey(0)
 
+camera.sharpness = 0
+camera.contrast = 0
+camera.brightness = 50
+camera.saturation = 0
+camera.ISO = 0
+camera.video_stabilization = False
+camera.exposure_compensation = 0
+camera.exposure_mode = 'auto'
+camera.meter_mode = 'average'
+camera.awb_mode = 'auto'
+camera.image_effect = 'none'
+camera.color_effects = None
+camera.rotation = 0
+camera.hflip = False
+camera.vflip = False
+camera.crop = (0.0, 0.0, 1.0, 1.0)
+
+time.sleep(2)
+
+while True:
+    time.sleep(0.1)
+    camera.capture(rawCapture, format="bgr")
+    cv.imshow("Image", rawCapture.array)
+    cv.waitKey(1)
+    rawCapture.seek(0)
+    rawCapture.truncate()
+cv.destroyAllWindows()
