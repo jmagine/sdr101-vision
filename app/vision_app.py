@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import sys
 sys.path.append("../include/")
 import cv2 as cv
@@ -10,7 +11,7 @@ from picamera import PiCamera
  
 camera = PiCamera()
 rawCapture = PiRGBArray(camera)
-
+                                                                               # camera config
 camera.sharpness = 0
 camera.contrast = 0
 camera.brightness = 50
@@ -28,13 +29,16 @@ camera.hflip = False
 camera.vflip = False
 camera.crop = (0.0, 0.0, 1.0, 1.0)
 
-time.sleep(2)
-
-while True:
-    time.sleep(0.1)
-    camera.capture(rawCapture, format="bgr")
-    cv.imshow("Image", rawCapture.array)
-    cv.waitKey(1)
-    rawCapture.seek(0)
-    rawCapture.truncate()
-cv.destroyAllWindows()
+if __name__ == "__main__":                                                     # main
+    print("Initializing DSM Client")
+    serverID = 45
+    clientID = 0
+    client = dsm.Client(serverID, clientID, True)
+    print("Finished initializing DSM Client")
+    while True:                                                                # process every frame
+        camera.capture(rawCapture, format="bgr")
+        #cv.imshow("Image", rawCapture.array)
+        rawCapture.seek(0)
+        rawCapture.truncate()
+        cv.destroyAllWindows()
+        print("frame %dx%d"%(len(rawCapture.array),len(rawCapture.array[0])))
