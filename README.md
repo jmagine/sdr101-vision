@@ -1,9 +1,15 @@
-Requirements:
+# ForwardVision
+A forward vision system so bad, it should be illegal.
 
-Python 3.4
+## Requirements
+* Python 3.4
+* OpenCV 3.1.0
+* Numpy
+* PyDSM
 
-OpenCV 3.1.0
+## Goals
+Ideally, we should be able to detect buoys and gates in the water.
 
-Numpy
-
-PyDSM
+## Upcoming
+* Move code to C++
+* FPGA Acceleration
