@@ -14,8 +14,16 @@ Ideally, we should be able to detect buoys and gates in the water.
 * Move code to C++
 * FPGA Acceleration 
 
-## Installation
+## Install ForwardVision
+* `git clone git@gitlab.com:sdrobotics101/ForwardVision.git`
+
+## Run the vision application
+* `python3 vision_app.py` 
+
+## How to set up forward vision pi
 * Start with Raspbian
+* Set hostname to `forward`
+* Set IP to `10.0.0.45`
 * `sudo raspi-config`
     * Expand filesystem
 * `sudo apt-get update`
