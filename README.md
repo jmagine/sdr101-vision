@@ -16,6 +16,7 @@ Ideally, we should be able to detect buoys and gates in the water.
 
 ## Install ForwardVision
 * `git clone git@gitlab.com:sdrobotics101/ForwardVision.git`
+* `git submodule update --init --recursive`
 
 ## Run the vision application
 * `python3 vision_app.py` 
