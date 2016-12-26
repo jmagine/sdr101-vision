@@ -3,6 +3,8 @@ frames_out
 blur
 frames_out2
 
+include
+
 # Created by https://www.gitignore.io/api/python,opencv,vim
 
 ### Python ###
