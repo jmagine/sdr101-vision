@@ -6,11 +6,19 @@ A forward vision system so bad, it should be illegal.
 * OpenCV 3.1.0
 * Numpy
 * PyDSM
+* 
+
+## Features
+* Safely handles picamera
+* Reads goals from master DSM buffer
 
 ## Goals
-Ideally, we should be able to detect buoys and gates in the water.
+Ideally, we should be able to detect buoys and gates in the water, based on
+what master tells us to look for
 
 ## Upcoming
+* Use alternate colorspace to threshold better
+* Communicate with PyDSM
 * Move code to C++
 * FPGA Acceleration 
 
