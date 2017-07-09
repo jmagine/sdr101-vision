@@ -1,2 +1,2 @@
 #!/bin/bash
-python3 /home/pi/computer-vision/app/vision_app.py
+python3 /home/pi/ForwardVision/app/vision_app.py
