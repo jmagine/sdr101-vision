@@ -1,3 +1,0 @@
-[submodule "DistributedSharedMemory"]
-	path = DistributedSharedMemory
-	url = git@gitlab.com:sdrobotics101/DistributedSharedMemory.git
