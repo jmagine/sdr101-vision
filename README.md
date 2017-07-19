@@ -1,12 +1,11 @@
 # ForwardVision
-A forward vision system so bad, it should be illegal.
+Looking forward to Robosub!
 
 ## Requirements
 * Python 3.4+
 * OpenCV 3.1.0
 * Numpy
 * PyDSM
-* 
 
 ## Features
 * Safely handles picamera
@@ -24,7 +23,8 @@ what master tells us to look for
 
 ## Install ForwardVision
 * `git clone git@gitlab.com:sdrobotics101/ForwardVision.git`
-* `git submodule update --init --recursive`
+* `cd ForwardVision`
+* `pip3 install -e .`
 
 ## Run the vision application
 * `python3 vision_app.py` 
