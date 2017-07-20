@@ -1,20 +1,27 @@
 import numpy as np
 import cv2
 
-cap = cv2.VideoCapture(1)
+def main():
+    camera = cv2.VideoCapture(0)
+    frames = []
+    try:
+        while True:
+            ret, capture = camera.read()
+            frames.append(capture)
+            while len(frames) > 2:
+                frames.pop(0)
 
-while(True):
-    # Capture frame-by-frame
-    ret, frame = cap.read()
+            frame = np.array(np.average(frames, axis=0), dtype=np.uint8)
+            # Our operations on the frame come here
+            #gray = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-    # Our operations on the frame come here
-    #gray = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # Display the resulting frame
+            cv2.imshow('frame', frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+    finally:
+        camera.release()
+        cv2.destroyAllWindows()
 
-    # Display the resulting frame
-    cv2.imshow('frame', frame)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-
-# When everything done, release the capture
-cap.release()
-cv2.destroyAllWindows()
+if __name__ == '__main__':
+    main()

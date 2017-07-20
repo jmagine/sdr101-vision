@@ -11,15 +11,13 @@ import logging
 import traceback
 from ctypes import sizeof
 
-from picamera.array import PiRGBArray
-from picamera import PiCamera
 import cv2
 import numpy as np
 
 import pydsm
-from Constants import FORWARD_VISION_SERVER_ID, GATEPOLE, TARGET_LOCATION
-from Vision import LocationArray
-from Serialization import *
+from shared_buffers.constants import FORWARD_VISION_SERVER_ID, GATEPOLE, TARGET_LOCATION
+from shared_buffers.vision import LocationArray
+from shared_buffers.serialization import *
 from Master import *
 
 log = logging.getLogger('forward_vision')
@@ -27,25 +25,7 @@ log = logging.getLogger('forward_vision')
 SERVER_ID = 45
 CLIENT_ID = 0
 
-def setup_camera(camera):
-    camera.sharpness = 0
-    camera.contrast = 0
-    camera.brightness = 50
-    camera.saturation = 0
-    camera.ISO = 0
-    camera.video_stabilization = False
-    camera.exposure_compensation = 0
-    camera.exposure_mode = 'auto'
-    camera.meter_mode = 'average'
-    camera.awb_mode = 'auto'
-    camera.image_effect = 'none'
-    camera.color_effects = None
-    camera.rotation = 0
-    camera.hflip = False
-    camera.vflip = False
-    camera.crop = (0.0, 0.0, 1.0, 1.0)
-    camera.resolution = (2592,1944)
-    camera.framerate = 5
+
 
 def update_location_data(client):
     l = LocationArray()
