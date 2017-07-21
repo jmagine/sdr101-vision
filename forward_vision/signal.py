@@ -1,5 +1,5 @@
 import sys
-import utils
+from utils import ON_PI
 
 if ON_PI:
 	import pydsm

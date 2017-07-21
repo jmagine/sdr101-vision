@@ -11,13 +11,13 @@ def main():
             while len(frames) > 2:
                 frames.pop(0)
 
-            frame = np.array(np.average(frames, axis=0), dtype=np.uint8)
+            frame = np.array(np.mean(frames, axis=0), dtype=np.uint8)
             # Our operations on the frame come here
             #gray = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
             # Display the resulting frame
             cv2.imshow('frame', frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            if cv2.waitKey(1) == ord('q'):
                 break
     finally:
         camera.release()

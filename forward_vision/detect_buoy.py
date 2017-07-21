@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from cv2 import WINDOW_NORMAL, COLOR_BGR2HSV, waitKey
+from cv2 import WINDOW_NORMAL, COLOR_BGR2HSV
 
 def nothing(x):
     pass
@@ -42,30 +42,33 @@ hsvimg = cv2.cvtColor(cimg, COLOR_BGR2HSV);
 ORANGE_MIN = np.array([-15, 50, 50], np.uint8)
 ORANGE_MAX = np.array([15, 255, 255], np.uint8)
 
+def main():
+    while True:
+        img = cimg.copy()
+        p1 = cv2.getTrackbarPos('param1', 'detected circles')
+        p2 = cv2.getTrackbarPos('param2', 'detected circles')
+        minR = cv2.getTrackbarPos('minRadius', 'detected circles')
+        maxR = cv2.getTrackbarPos('maxRadius', 'detected circles')
+        mindist = cv2.getTrackbarPos('minimum distance', 'detected circles')
+        if p2 != 0 and p1 != 0 and mindist != 0:
+            circles = cv2.HoughCircles(gimg, cv2.HOUGH_GRADIENT, 1, mindist,
+                    param1=p1, param2=p2, minRadius=minR, maxRadius=maxR)
+        if circles is not None:
+            circles = np.uint16(np.around(circles))
+            for i in circles[0, :]:
+                pix = np.array([[cimg[i[1], i[0]]]])
+                hue = cv2.cvtColor(pix, COLOR_BGR2HSV)[0, 0][0]
+                #print(hue)
+                if (hue < 180 and hue > 130) or (hue > 0 and hue < 30):
+                    cv2.circle(img, (i[0], i[1]), i[2], (0, 255, 128), 2)
+                    cv2.circle(img, (i[0], i[1]), 2, (0, 255, 0), 3)
+                else :
+                    cv2.circle(img, (i[0], i[1]), i[2], (0, 0 , 255), 2)
+                    cv2.circle(img, (i[0], i[1]), 2, (0, 0, 255), 3)
+        cv2.imshow('detected circles', img)
+        if cv2.waitKey(1) == ord('q'):
+            break
+    cv2.destroyAllWindows()
 
-
-
-while(1):
-    img = cimg.copy()
-    p1 = cv2.getTrackbarPos('param1', 'detected circles')
-    p2 = cv2.getTrackbarPos('param2', 'detected circles')
-    minR = cv2.getTrackbarPos('minRadius', 'detected circles')
-    maxR = cv2.getTrackbarPos('maxRadius', 'detected circles')
-    mindist = cv2.getTrackbarPos('minimum distance', 'detected circles')
-    if p2 != 0 and p1 != 0 and mindist != 0:
-        circles = cv2.HoughCircles(gimg, cv2.HOUGH_GRADIENT, 1, mindist, param1=p1, param2=p2, minRadius=minR, maxRadius=maxR)
-    if circles is not None:
-        circles = np.uint16(np.around(circles))
-        for i in circles[0, :]:
-            pix = np.array([[cimg[i[1], i[0]]]])
-            hue = cv2.cvtColor(pix, COLOR_BGR2HSV)[0, 0][0]
-            #print(hue)
-            if (hue < 180 and hue > 130) or (hue > 0 and hue < 30):
-                cv2.circle(img, (i[0], i[1]), i[2], (0, 255, 128), 2)
-                cv2.circle(img, (i[0], i[1]), 2, (0, 255, 0), 3)   
-            else :
-                cv2.circle(img, (i[0], i[1]), i[2], (0, 0 , 255), 2)
-                cv2.circle(img, (i[0], i[1]), 2, (0, 0, 255), 3)
-    cv2.imshow('detected circles', img)
-    cv2.waitKey(0)
-cv2.destroyAllWindows()
+if __name__ == '__main__':
+    main()
