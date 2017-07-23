@@ -96,7 +96,8 @@ setup(
     # pip to create the appropriate form of executable for the target platform.
     entry_points={
         'console_scripts': [
-            'forward_vision=forward_vision.forward_vision:main',
+            'forward_vision=forward_vision.main:main',
+            'take_pics=forward_vision.camera:main'
         ],
     },
 )

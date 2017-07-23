@@ -38,14 +38,14 @@ def update_location_data(client):
     l.locations[1].x = 2
     l.locations[1].y = 2
     l.locations[1].z = 2
-    l.locations[1].confidence = 2
+    l.locations[1].confidencwe = 2
     l.locations[1].loctype = GATEPOLE
 
     l.locations[2].x = 3
     l.locations[2].y = 3
     l.locations[2].z = 3
     l.locations[2].confidence = 3
-    l.locations[2].loctype = GATEPOLE     
+    l.locations[2].loctype = GATEPOLE
     #Pack and send location data
     buf = Pack(l)
     client.setLocalBufferContents(TARGET_LOCATION, buf)
@@ -53,7 +53,7 @@ def update_location_data(client):
 
 def run():
     with PiCamera() as camera:
-        time.sleep(0.1) 
+        time.sleep(0.1)
         setup_camera(camera)
         log.debug("Initializing DSM Client")
         client = pydsm.Client(SERVER_ID, CLIENT_ID, True)
@@ -69,7 +69,7 @@ def run():
             for frame in camera.capture_continuous(stream, format="bgr", use_video_port=True):
                 try:
                     #Get goals buffer from master
-                    
+
                     buf, active = client.getRemoteBufferContents(MASTER_GOALS, MASTER_SERVER_IP, MASTER_SERVER_ID)
                     #Process goals buffer
                     if buf and active:
