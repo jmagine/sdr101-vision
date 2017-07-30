@@ -1,10 +1,13 @@
 """
-Gets the average
+Gets the average color
+
+OpenCV HSV range is: H: 0 to 179 S: 0 to 255 V: 0 to 255
 """
 import numpy as np
 import cv2
 
 def hsv_interpolate(hsv1, hsv2, ratio=0.5):
+    pass
 
 def rgb_interpolate(rgb1, rgb2, ratio=0.5):
     return np.array(rgb1 * ratio + rgb2 * (1 - ratio), dtype=np.uint8)

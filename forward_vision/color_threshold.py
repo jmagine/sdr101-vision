@@ -1,22 +1,26 @@
+"""
+Runs a color threshold processing
+"""
 import cv2
 import numpy as np
 
+from .camera import get_camera
+
 # HSV Thresholds
-lower_blue = np.array([110, 50, 50])
-upper_blue = np.array([130, 255, 255])
+LOWER_BLUE = np.array([110, 50, 50])
+UPPER_BLUE = np.array([130, 255, 255])
 
 def main():
-    cap = cv2.VideoCapture(0)
-    try:
+    with get_camera() as camera:
         while True:
             # Take each frame
-            ret, frame = cap.read()
+            frame = camera.next_frame()
 
             # Convert BGR to HSV
             hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
             # Threshold the HSV image to get only blue colors
-            mask = cv2.inRange(hsv, lower_blue, upper_blue)
+            mask = cv2.inRange(hsv, LOWER_BLUE, UPPER_BLUE)
 
             # Bitwise-AND mask and original image
             res = cv2.bitwise_and(frame,frame, mask= mask)
@@ -26,8 +30,7 @@ def main():
             cv2.imshow('res',res)
             if cv2.waitKey(5) & 0xFF == ord('q'):
                 break
-    finally:
-        cap.release()
+
 
 if __name__ == '__main__':
     main()
