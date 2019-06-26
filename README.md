@@ -1,5 +1,4 @@
 # ForwardVision
-Looking forward to Robosub!
 
 ## Requirements
 * Python 3.4+
@@ -12,8 +11,8 @@ Looking forward to Robosub!
 * Reads goals from master DSM buffer
 
 ## Goals
-Ideally, we should be able to detect buoys and gates in the water, based on
-what master tells us to look for
+Detect mission objectives in the water to advise mission module where vehicle
+is in relation to task. This includes PVC gates, buoys, and shaped cutouts.
 
 ## Upcoming
 * Use alternate colorspace to threshold better
@@ -22,7 +21,7 @@ what master tells us to look for
 * FPGA Acceleration 
 
 ## Install ForwardVision
-* `git clone git@gitlab.com:sdrobotics101/ForwardVision.git`
+* `git clone git@github.com:sdrobotics101/forward-vision.git`
 * `cd ForwardVision`
 * `pip3 install -e .`
 
