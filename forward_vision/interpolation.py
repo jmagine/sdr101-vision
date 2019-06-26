@@ -6,23 +6,27 @@ OpenCV HSV range is: H: 0 to 179 S: 0 to 255 V: 0 to 255
 import numpy as np
 import cv2
 
+
 def hsv_interpolate(hsv1, hsv2, ratio=0.5):
     pass
+
 
 def rgb_interpolate(rgb1, rgb2, ratio=0.5):
     return np.array(rgb1 * ratio + rgb2 * (1 - ratio), dtype=np.uint8)
 
+
 def main():
     for i in range(1, 67):
-        frame = cv2.imread('blur/frame{:03d}.bmp'.format(i))
+        frame = cv2.imread("blur/frame{:03d}.bmp".format(i))
         # gray_img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         # hue_avg = np.average(hsv[:, :, 0])
         b_avg = np.average(frame[:, :, 0])
         g_avg = np.average(frame[:, :, 1])
         r_avg = np.average(frame[:, :, 2])
-        h_avg = cv2.cvtColor(np.uint8([[[b_avg, g_avg, r_avg]]]),
-                             cv2.COLOR_BGR2HSV)[0][0][0]
+        h_avg = cv2.cvtColor(np.uint8([[[b_avg, g_avg, r_avg]]]), cv2.COLOR_BGR2HSV)[0][
+            0
+        ][0]
         sat_avg = np.average(hsv[:, :, 1])
         print("Average sat: {}".format(sat_avg))
         print("Average hue: {}".format(h_avg))
@@ -55,9 +59,10 @@ def main():
         #         cv2.drawContours(res,[cnt],0,(0,255,255),-1)
         # blur = cv2.bilateralFilter(frame,9,75,75)
         # res = blur
-        cv2.imwrite('frame_out2/frame{:03d}.bmp'.format(i), res)
-        print('frame {:u}'.format(i))
+        cv2.imwrite("frame_out2/frame{:03d}.bmp".format(i), res)
+        print("frame {:u}".format(i))
     cv2.destroyAllWindows()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
