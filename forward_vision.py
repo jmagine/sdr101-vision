@@ -148,7 +148,7 @@ def main():
     client = pydsm.Client(conf.p["dsm_server_id"], conf.p["dsm_client_id"], True)
 
     print("[init] Initializing local buffers")
-    client.registerLocalBuffer(TARGET_LOCATION, sizeof(Location), False)
+    client.registerLocalBuffer(FORWARD_DETECTION, sizeof(DetectionArray), False)
     
     print("[init] DSM init complete")
   #handle directory creation for saving images
@@ -260,7 +260,7 @@ if conf.p["using_dsm"]:
 
   import pydsm
   from Constants import *
-  from Vision import Location
+  from Vision import Detection, DetectionArray
   from Serialization import *
   from ctypes import sizeof
   from Master import *
