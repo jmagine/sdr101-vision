@@ -1,1 +1,0 @@
-"""Forward-facing camera functions"""

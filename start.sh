@@ -1,2 +1,3 @@
 #!/bin/bash
-python3 /home/pi/ForwardVision/app/buoy_app.py
+cd "$(dirname "$0")"
+python3 /home/pi/forward-vision/forward_vision.py
