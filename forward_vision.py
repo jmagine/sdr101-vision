@@ -14,6 +14,7 @@
 import utils
 
 import os
+import re
 import sys
 import time
 
@@ -52,8 +53,6 @@ PRINT_TIMING = True
 ----------------------------------------------------------------------------'''
 def process_image(image):
   
-  #global READ_POS
-  
   #[sanity checks]-------------------------------------------------------------
   if image is None:
     print("[proc] Image is None")
@@ -63,7 +62,7 @@ def process_image(image):
   start = time.time()
   
   #resize images to low or mid res for faster processing
-  #image = cv2.resize(image, conf.p["res_process"], interpolation = cv2.INTER_CUBIC)
+  image = cv2.resize(image, conf.p["res_process"], interpolation = cv2.INTER_CUBIC)
   
   end = time.time()
 
@@ -71,7 +70,7 @@ def process_image(image):
     print("[proc] Preproc:\t%.5f" % (end - start))
 
   #send images through darknet and publish to DSM
-
+  
   #display images
   if conf.p["display_type"] != "no_disp":
     images = []
@@ -88,24 +87,30 @@ def process_image(image):
 
     #wait for input from user, use space or arrow keys to advance/nav stream
     elif conf.p["display_type"] == "wasd_input":
+      print("[proc] wasd")
       key = ''
       while True:
-        key = cv2.waitKey(100000)
+        key = cv2.waitKey(1000)
         if key == ord('q'):
           print("[proc] Detected q, exiting")
           sys.exit(0)
 
         #left
-        #elif key == ord('a'):
-        #  READ_POS -= 1
-        #  break
+        elif key == ord('a'):
+          conf.p["read_pos"] -= 1
+          break
         #right
-        #elif key == ord('d') or key == ord(' '):
-        #  READ_POS += 1
-        #  break
+        elif key == ord('d') or key == ord(' '):
+          conf.p["read_pos"] += 1
+          break
 
-  #return max_x, max_y, int(max_count * 255 / total_count)
   return 0, 0, 0
+
+def pub_detections(client, detections):
+  d_a = DetectionArray()
+  for i, d in enumerate(detections):
+    d_a.detections[i] = d
+  client.setLocalBufferContents("forwarddetection", pack(d_a))
 
 def dev_process_image(image_dir):
   
@@ -126,6 +131,91 @@ def dev_process_image(image_dir):
   #process image
 
   #display image
+
+#returns yolo output string from image
+def yolo(image_path):
+  yolo_proc = run([os.path.join("./darknet"),
+                     "detector",
+                     "test",
+                     os.path.join("cfg", "robosub.data"),
+                     os.path.join("cfg", "yolov3-tiny-obj.cfg"),
+                     os.path.join("yolov3-tiny-obj_final.weights"),
+                     image_path],#os.path.join(conf.p["input_dir"], "0.jpg")],#"-thresh","0.1"],
+                     stdin=PIPE, stdout=PIPE, stderr=STDOUT, cwd=darknet_base_dir)
+  output = yolo_proc.stdout.decode("UTF-8").split("Predicted in ")[1]
+  output = output.split("\n")
+
+  
+  print("[yolo] %s" % (output))
+  return output
+
+#return detections from yolo output string
+def detect(s):
+  detections = []
+
+  if len(s) < 2:
+    return detections
+
+  for i in range(2, len(s)):
+    box = re.findall("\d+\.\d+", s[i])
+    box = [float(x) for x in box]
+    
+    if len(box) < 5:
+      continue
+    
+    d = Detection()
+    d.x = box[1] + box[3] / 2.0
+    d.y = box[2] + box[4] / 2.0
+    d.size = box[3] * box[4]
+    d.cls = s[i].split(":")[0].encode("UTF-8")
+    detections.append(d)
+
+  return detections
+  
+'''
+def subprocess_wait():
+  print("[sub_wait] start")
+  out = ""
+  ready = False
+  while not ready:
+    yolo_proc.stdout.flush()
+    stdout_line = yolo_proc.stdout.readline()
+
+    if not stdout_line:
+      continue
+
+    stdout_line = stdout_line.decode("UTF-8")
+    out += stdout_line
+    print("[sub_wait] %s" % out)
+    if "Enter Image Path" in out:
+      ready = True
+      break
+  
+  return out
+
+def yolo(image_path):
+  global darknet_frame
+  try:
+    print("[yolo] [feed] %s" % (image_path))
+    try:
+      prediction = cv2.imread(os.path.join(darknet_base_dir, "predictions.png"))
+      copyfile(os.path.join(darknet_base_dir, "predictions.png"), 
+               os.path.join(conf.p["output_dir"], "darknet", "pred_%d.jpg" % darknet_frame))
+      darknet_frame += 1
+    except Exception as e:
+      print("[yolo] exception inner: %s" % str(e))
+      pass
+    
+    image_path = image_path + "\n"
+    yolo_proc.stdin.write(image_path.encode("UTF-8"))
+    out = subprocess_wait()
+    print(out)
+      
+  except Exception as e:
+    print("[yolo] exception outer: %s" % str(e))
+    pass
+  print("[yolo] complete", yolo_proc.poll())
+'''
 
 '''[main]----------------------------------------------------------------------
   Main driver, creates file structure for images, handles existing/non-existing
@@ -148,7 +238,7 @@ def main():
     client = pydsm.Client(conf.p["dsm_server_id"], conf.p["dsm_client_id"], True)
 
     print("[init] Initializing local buffers")
-    client.registerLocalBuffer(FORWARD_DETECTION, sizeof(DetectionArray), False)
+    client.registerLocalBuffer("forwarddetection", sizeof(DetectionArray), False)
     
     print("[init] DSM init complete")
   #handle directory creation for saving images
@@ -180,24 +270,54 @@ def main():
         
         #do not use the first image because stream could still be writing to it
         last_image_file = image_list[1]
-
+        
         #load a recent image in
         image = utils.load_image(os.path.join(c_t.image_full_dir, last_image_file), COLOR_RGB)
         process_image(image)
-        time.sleep(1)
+        if conf.p["using_darknet_nnpack"]:
+          yolo(os.path.join(c_t.image_full_dir, last_image_file))
+        else:
+          time.sleep(1)
+    
     except KeyboardInterrupt:
       print("[main] Ctrl + c detected, breaking")
       print("[main] Full output path: %s" % (c_t.image_full_dir))
 
-  #use dev process func
+  #custom processing func with dsm
   if conf.p["mode"] == "dev":
-    try:
-      while True:
-        dev_process_image(c_t.image_full_dir)
-        time.sleep(1)
-    except KeyboardInterrupt:
-      print("[main] Ctrl + c detected, breaking")
-      print("[main] Full output path: %s" % (c_t.image_full_dir))
+    read_pos = conf.p["read_pos"]
+    #generate list of all image names
+    image_list = os.listdir(conf.p["input_dir"])
+    image_list.sort(key = lambda x: int(x.split(".")[0]))
+    
+    #such turing machine
+    while read_pos >= 0 and read_pos < len(image_list):
+      if image_list[read_pos].split(".")[1] != "jpg":
+        del image_list[read_pos]
+
+      image = utils.load_image(os.path.join(conf.p["input_dir"], str(image_list[read_pos])), COLOR_RGB)
+      process_image(image)
+      read_pos = conf.p["read_pos"]
+
+      if conf.p["using_darknet_nnpack"]:
+        out = yolo(os.path.join(conf.p["input_dir"], str(image_list[read_pos])))
+        detections = detect(out)
+        pub_detections(client, detections)
+
+      if read_pos < 0 or read_pos >= len(image_list):
+        print("[main] Exit? y/n")
+
+        while True:
+          key = cv2.waitKey(100000)
+
+          if key == ord('q') or key == ord('y'):
+            sys.exit(0)
+          elif key == ord('n'):
+            if read_pos < 0:
+              read_pos = len(image_list) - 1
+            else:
+              read_pos = 0
+            break
 
   #no processing
   if conf.p["mode"] == "capture":
@@ -218,7 +338,7 @@ def main():
       x, y, confidence = process_image(image)
       image_count += 1
       #pack and publish results to DSM buffer
-      utils.pub_loc(client, 0, x, y, confidence, image_count % 256)
+      #utils.pub_detections(client, 0, x, y, confidence, image_count % 256)
   
   #TODO untested
   elif conf.p["mode"] == "read":
@@ -230,9 +350,16 @@ def main():
     
     #such turing machine
     while read_pos >= 0 and read_pos < len(image_list):
+      if image_list[read_pos].split(".")[1] != "jpg":
+        del image_list[read_pos]
+
       image = utils.load_image(os.path.join(conf.p["input_dir"], str(image_list[read_pos])), COLOR_RGB)
       process_image(image)
+      read_pos = conf.p["read_pos"]
 
+      if conf.p["using_darknet_nnpack"]:
+        out = yolo(os.path.join(conf.p["input_dir"], str(image_list[read_pos])))
+        detections = detect(out)
       if read_pos < 0 or read_pos >= len(image_list):
         print("[main] Exit? y/n")
 
@@ -256,18 +383,66 @@ conf.parse_conf("config.cfg")
 #conditional imports which require integration with rest of system
 if conf.p["using_dsm"]:
   sys.path.append("/home/pi/DistributedSharedMemory/")
-  sys.path.append("/home/pi/PythonSharedBuffers/src/")
+  sys.path.append("/home/pi/python-shared-buffers/shared_buffers/")
 
   import pydsm
-  from Constants import *
-  from Vision import Detection, DetectionArray
-  from Serialization import *
+  from constants import *
+  from vision import Detection, DetectionArray
+  from serialization import *
   from ctypes import sizeof
-  from Master import *
+  from master import *
 
 if conf.p["using_camera"]:
   from picamera.array import PiRGBArray
   from picamera import PiCamera
+
+if conf.p["using_darknet_nnpack"]:
+  from subprocess import run, Popen, PIPE, STDOUT
+  import fcntl
+  from shutil import copyfile
+  
+  darknet_base_dir = conf.p["darknet_nnpack_dir"]
+  '''
+  yolo_proc = Popen([os.path.join("./darknet"),
+                     "detector",
+                     "test",
+                     os.path.join("cfg", "robosub.data"),
+                     os.path.join("cfg", "yolov3-tiny-obj.cfg"),
+                     os.path.join("yolov3-tiny-obj_final.weights"),
+                     ],#os.path.join(conf.p["input_dir"], "0.jpg")],#"-thresh","0.1"],
+                     stdin=PIPE, stdout=PIPE, stderr=STDOUT, cwd=darknet_base_dir)
+  fcntl.fcntl(yolo_proc.stdout.fileno(), fcntl.F_SETFL, os.O_NONBLOCK)
+  '''
+  #output = yolo_proc.stdout.read()
+  #print(output)
+  darknet_frame = 0
+
+  #subprocess_wait()
+  #os.makedirs(os.path.join(conf.p["output_dir"], "darknet"))
+  
+  '''
+  class_names_file = "/home/pi/darknet-nnpack/data/robosub.names"
+  classes = None
+  with open(class_names_file, 'rt') as f:
+    classes = f.read().rstrip("\n").split("\n")
+
+  model_config = "/home/pi/darknet-nnpack/cfg/yolov3-tiny-obj.cfg"
+  model_weights = "/home/pi/darknet-nnpack/yolov3-tiny-obj_final.weights"
+  yolo = cv2.dnn.readNetFromDarknet(model_config, model_weights)
+  yolo.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+  yolo.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+
+  ln = yolo.getLayerNames()
+  ln = [ln[i[0] - 1] for i in yolo.getUnconnectedOutLayers()]
+
+  image = utils.load_image(os.path.join(conf.p["input_dir"], "0.jpg"), COLOR_RGB)
+  blob = cv2.dnn.blobFromImage(image, 1 / 255.0, (416, 416), swapRB=True, crop=False)
+  yolo.setInput(blob)
+  start = time.time()
+  layer_out = yolo.forward(ln)
+  end = time.time()
+  print(end - start)
+  '''
 
 if __name__ == '__main__':
   main()
