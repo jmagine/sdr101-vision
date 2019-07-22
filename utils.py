@@ -48,25 +48,20 @@ class Config():
     if self.p["mode"] == "live":
       self.p["using_dsm"] = 1
       self.p["using_camera"] = 1
-      self.p["display_type"] = "no_disp"
     elif self.p["mode"] == "capture":
       self.p["using_dsm"] = 0
       self.p["using_camera"] = 1
-      self.p["display_type"] = "no_input"
     elif self.p["mode"] == "loop":
       self.p["using_dsm"] = 1
       self.p["using_camera"] = 0
-      self.p["display_type"] = "no_input"
     elif self.p["mode"] == "read":
       self.p["using_dsm"] = 0
       self.p["using_camera"] = 0
-      self.p["display_type"] = "wasd_input"
     elif self.p["mode"] == "dev":
       self.p["using_dsm"] = 1
-      self.p["using_camera"] = 1
-      self.p["display_type"] = "no_input"
+      self.p["using_camera"] = 0
 
-'''[gen_dir]---------------------------------------------------------
+'''[gen_dir]-------------------------------------------------------------------
   Generates directory for new captures
 ----------------------------------------------------------------------------'''
 def gen_dir(images_dir):
@@ -92,19 +87,6 @@ def gen_dir(images_dir):
 
   return images_dir_full
 
-'''[pub_loc]-------------------------------------------------------------------
-  Publishes location to DSM buffer
-----------------------------------------------------------------------------'''
-def pub_loc(client, x, y, z, conf, loctype):
-  l = Location()
-  l.x = x
-  l.y = y
-  l.z = z
-  l.confidence = conf
-  l.loctype = loctype
-  client.setLocalBufferContents(TARGET_LOCATION, Pack(l))
-  print("[main] [dsm] publishing x:" + str(l.x) + " y:" + str(l.y) + " z:" + str(l.z) + " id:" + str(l.loctype) + " c:" + str(l.confidence))
-  
 '''[load_image]----------------------------------------------------------------
   Loads image from given path and returns it
 ----------------------------------------------------------------------------'''
