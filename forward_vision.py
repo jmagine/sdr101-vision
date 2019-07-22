@@ -69,7 +69,7 @@ def process_image(image):
   start = time.time()
   
   #resize images to low or mid res for faster processing
-  #image = cv2.resize(image, conf.p["res_process"], interpolation = cv2.INTER_CUBIC)
+  image = cv2.resize(image, conf.p["res_process"], interpolation = cv2.INTER_CUBIC)
   
   end = time.time()
 
@@ -104,11 +104,11 @@ def process_image(image):
 
         #left
         elif key == ord('a'):
-          conf.p["read_pos"] -= 100
+          conf.p["read_pos"] -= 1
           break
         #right
         elif key == ord('d') or key == ord(' '):
-          conf.p["read_pos"] += 100
+          conf.p["read_pos"] += 1
           break
 
   return 0, 0, 0
@@ -403,8 +403,11 @@ def main():
         detections = detect(out)
       
       image = utils.load_image(os.path.join(conf.p["input_dir"], str(image_list[read_pos])), COLOR_RGB)
-      process_image(image)
+      #process_image(image)
+      read_pos = conf.p["read_pos"]
 
+      if conf.p["using_darknet_nnpack"]:
+        out = yolo(os.path.join(conf.p["input_dir"], str(image_list[read_pos])))
       if read_pos < 0 or read_pos >= len(image_list):
         print("[main] Exit? y/n")
 
