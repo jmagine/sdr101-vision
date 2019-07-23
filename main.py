@@ -1,14 +1,12 @@
 '''*-----------------------------------------------------------------------*---
                                                          Author: Jason Ma
                                                          Date  : Aug 15 2018
-                                 forward-vision
+                                    vision
 
-  File Name  : forward_vision.py
-  Description: Main application for forward vision, looks for targets as
-               specified by master module or manually specified. Can be placed
-               in live mode for use with real robot, loopback mode to play back
-               footage from mission and publish to DSM, or read mode to just
-               run algorithms on previous missions
+  File Name  : main.py
+  Description: Main application for vision module, looks for targets as
+               specified by master module or manually specified. Submodule
+               config located in config.cfg, including DSM, darknet, and cam.
 ---*-----------------------------------------------------------------------*'''
 
 import utils
@@ -31,9 +29,6 @@ from master import *
 '''[Global vars]------------------------------------------------------------'''
 
 config_file = "config.cfg"
-#color codes for opencv
-#COLOR_RGB  = 1
-#COLOR_GRAY = 0
 
 #image shapes (width, height) for use with opencv
 RES_1944 = (2592, 1944)
@@ -147,7 +142,7 @@ def pub_detections(client, boxes):
     d_a.detections[i] = d
     print("[pub] c: %3d\tx: %.3f\ty: %.3f\tw: %.3f\th: %.3f" % (d.cls, d.x, d.y, d.w, d.h))
   
-  client.setLocalBufferContents("forwarddetection", pack(d_a))
+  client.setLocalBufferContents(conf.p["dsm_buffer_name"], pack(d_a))
 
 '''[main]----------------------------------------------------------------------
   
@@ -161,7 +156,7 @@ def main():
     client = pydsm.Client(conf.p["dsm_server_id"], conf.p["dsm_client_id"], True)
 
     print("[init] Initializing local buffers")
-    client.registerLocalBuffer("forwarddetection", sizeof(DetectionArray), False)
+    client.registerLocalBuffer(conf.p["dsm_buffer_name"], sizeof(DetectionArray), False)
     
     print("[init] DSM init complete")
   

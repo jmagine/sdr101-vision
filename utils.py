@@ -59,7 +59,7 @@ class Config():
       self.p["using_camera"] = 0
     elif self.p["mode"] == "dev":
       self.p["using_dsm"] = 1
-      self.p["using_camera"] = 0
+      self.p["using_camera"] = 1
 
 '''[gen_dir]-------------------------------------------------------------------
   Generates directory for new captures
