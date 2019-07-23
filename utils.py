@@ -13,7 +13,7 @@ import sys
 import time
 import datetime
 
-import cv2
+import cv2 as cv
 import numpy as np
 
 class Config():
@@ -65,17 +65,17 @@ class Config():
   Generates directory for new captures
 ----------------------------------------------------------------------------'''
 def gen_dir(images_dir):
-  print("[gen tsd] Checking for general directory at: " + images_dir)
+  print("[gen_dir] Checking for general directory at: " + images_dir)
 
   if not os.path.exists(images_dir):
-    print("[gen tsd] Creating directory at: " + images_dir)
+    print("[gen_dir] Creating directory at: " + images_dir)
     os.makedirs(images_dir)
   
   subdir_count = 0
   while True:
     images_dir_subdir = os.path.join(images_dir, str(subdir_count))
     if not os.path.exists(images_dir_subdir):
-      print("[gen tsd] Creating directory at: " + images_dir_subdir)
+      print("[gen_dir] Creating directory at: " + images_dir_subdir)
       os.makedirs(images_dir_subdir)
       images_dir_full = images_dir_subdir
       break
@@ -92,7 +92,7 @@ def gen_dir(images_dir):
 ----------------------------------------------------------------------------'''
 def load_image(filename, channel_type):
   print("[load] Loading:\t" + filename.split('/')[-1])
-  return cv2.imread(filename, channel_type)
+  return cv.imread(filename, channel_type)
 
 '''[display_stacked]-----------------------------------------------------------
   Displays images stacked in specified grid pattern
@@ -106,11 +106,11 @@ def display_stacked(images, res, rows, cols):
   
   for r in range(rows):
     for i in range(r * cols, r * cols + cols):
-      images[i] = cv2.resize(images[i], res, interpolation = cv2.INTER_CUBIC)
+      images[i] = cv.resize(images[i], res, interpolation = cv.INTER_CUBIC)
       
       #convert all images to 3-channel images in RGB
       if len(images[i].shape) < 3:
-        images[i] = cv2.cvtColor(images[i], cv2.COLOR_GRAY2RGB)
+        images[i] = cv.cvtColor(images[i], cv.COLOR_GRAY2RGB)
     
     #build up rows
     stacked_rows.append(np.concatenate(images[r * cols: r * cols + cols], axis=1))
@@ -118,5 +118,59 @@ def display_stacked(images, res, rows, cols):
   #build up full image with rows
   stacked_img = np.concatenate(stacked_rows, axis=0)
 
-  cv2.imshow("All imgs", stacked_img)
+  cv.imshow("[stacked]", stacked_img)
 
+"""[get_output_names]----------------------------------------------------------
+  returns output layer class names
+----------------------------------------------------------------------------"""
+def get_output_names(net):
+  layer_names = net.getLayerNames()
+  return [layer_names[i[0] - 1] for i in net.getUnconnectedOutLayers()]
+
+"""[postprocess]---------------------------------------------------------------
+  yolov3 postprocessing:
+  - confidence filtering
+  - non-max suppression
+----------------------------------------------------------------------------"""
+def postprocess(frame, outs, conf_threshold=0.25, nms_threshold=0.5):
+  frame_h = frame.shape[0]
+  frame_w = frame.shape[1]
+
+  class_ids = []
+  confs = []
+  boxes = []
+  
+  #find all boxes that satisfy confidence threshold
+  for out in outs:
+    for detection in out:
+      scores = detection[5:]
+      class_id = np.argmax(scores)
+      conf = scores[class_id]
+      if conf > conf_threshold:
+        x_center = int(detection[0] * frame_w)
+        y_center = int(detection[1] * frame_h)
+        w = int(detection[2] * frame_w)
+        h = int(detection[3] * frame_h)
+        left = int(x_center - w / 2)
+        top = int(y_center - h / 2)
+
+        class_ids.append(class_id)
+        confs.append(conf)
+        boxes.append([left, top, w, h])
+
+  nms_boxes = []
+  
+  #apply non-max suppression to qualifying boxes
+  inds = cv.dnn.NMSBoxes(boxes, confs, conf_threshold, nms_threshold)
+  for i in inds:
+    i = i[0]
+    box = boxes[i]
+    left = box[0]
+    top = box[1]
+    width = box[2]
+    height = box[3]
+    x_center = left + width / 2.0
+    y_center = top + height / 2.0
+    print("[pp] xywh: %.3f %.3f %.3f %.3f" % (left, top, width, height))
+    nms_boxes.append([])
+  return nms_boxes

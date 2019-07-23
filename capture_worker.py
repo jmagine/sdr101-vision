@@ -9,7 +9,7 @@
 
 import os
 import threading
-import cv2
+import cv2 as cv
 import numpy as np
 import time
 
@@ -36,79 +36,60 @@ class cap_thread(threading.Thread):
     self.image_dir = image_dir
     self.image_full_dir = utils.gen_dir(self.image_dir)
     self.capture_started = False
-    print("[cap] Save dir generated")
+
+    self.camera = PiCamera()
+    self.camera.resolution = self.image_size
+    self.camera.framerate = 30
+    self.raw_capture = PiRGBArray(self.camera, size=self.image_size)
+    self.stream = self.camera.capture_continuous(self.raw_capture, format="bgr", use_video_port=True)
+    
+    self.frame = None
+    
+    #camera settings
+    self.camera.exposure_mode = 'auto'
+    self.camera.meter_mode = 'average'
+    self.camera.awb_mode = 'auto'
+    self.camera.rotation = 0
+    self.camera.hflip = False
+    self.camera.vflip = False
+
+    print("[cap] Thread initialized")
 
   def callback(self, msg):
     if msg == 'end':
       self.end_thread = True      
         
   def run(self):
-    print("[cap] Thread initialized")
-    print("[cap] Save dir: " + self.image_full_dir)
     
     #publish the live directory for the processor to handle stream
     with open("live_dir.log", 'w') as f:
       f.write(self.image_full_dir + "\n")
 
-    with PiCamera() as camera:
-      camera.resolution = self.image_size
-      camera.framerate = 30
-
-      #wait for auto gain control to settle
-      #time.sleep(2)
-      
-      #camera.sharpness = 0
-      #camera.contrast = 0
-      #camera.brightness = 50
-      #camera.saturation = 0
-      #camera.ISO = 'auto'
-      #camera.video_stabilization = False
-      #camera.exposure_compensation = 0
-      camera.exposure_mode = 'auto'
-      camera.meter_mode = 'average'
-      camera.awb_mode = 'auto'
-      #camera.image_effect = 'none'
-      #camera.color_effects = None
-      camera.rotation = 0
-      camera.hflip = False
-      camera.vflip = False
-
-      #camera.shutter_speed = camera.exposure_speed
-      #camera.exposure_mode = 'off'
-
-      #camera.iso = 200
-      #camera.shutter_speed
-      #g = camera.awb_gains
-      #camera.awb_mode = 'off'
-      #camera.shutter_speed = 0.125
-      #g = camera.awb_gains
-      #camera.awb_mode = 'off'
-      #camera.awb_gains = g
-
-      rawCapture = PiRGBArray(camera, size=self.image_size)
-      time.sleep(5)
-      
       print("[cap] Capture started")
       self.capture_started = True
 
       last_time = time.time()
       image_count = 0
       
-      for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
+      for f in self.stream:
         curr_time = time.time()
-
+        self.frame = f.array
+        
         if curr_time - last_time < MIN_IMAGE_INTERVAL:
-          rawCapture.truncate(0)
+          self.raw_capture.truncate(0)
           continue
 
         if image_count % 10 == 0:
-          print("[cap] Image count: %d\tInterval: %.5f\tImgDir: %s" % (image_count, curr_time - last_time, self.image_full_dir.split("/")[-1]))
+          print("[cap] Image count: %d\tInterval: %.3f\tImgDir: %s" % (image_count, curr_time - last_time, self.image_full_dir.split("/")[-1]))
 
         last_time = time.time()
-        cv2.imwrite(os.path.join(self.image_full_dir, str(image_count) + ".jpg"), frame.array)
-        rawCapture.truncate(0)
+        cv.imwrite(os.path.join(self.image_full_dir, str(image_count) + ".jpg"), self.frame)
+        self.raw_capture.truncate(0)
         image_count += 1
 
         if self.end_thread:
           print("[cap] Termination signal received from main thread")
+          self.stream.close()
+          self.raw_capture.close()
+          self.camera.close()
           break
