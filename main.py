@@ -46,7 +46,7 @@ RES_240 = (320, 240)
   max_y - most confident y coordinate
   confidence - confidence in range [0,255] for detection
 ----------------------------------------------------------------------------'''
-def process_image(image, image_id=""):
+def process_image(image, client, image_id=""):
   
   #[sanity checks]-------------------------------------------------------------
   if image is None:
@@ -65,7 +65,8 @@ def process_image(image, image_id=""):
     blob = cv.dnn.blobFromImage(image, 1/255.0, conf.p["res_darknet"], [0,0,0], 1, crop=False)
     yolo.setInput(blob)
     out = yolo.forward(utils.get_output_names(yolo))
-    utils.postprocess(image, out, conf_threshold=conf.p["darknet_conf_threshold"], nms_threshold=conf.p["darknet_nms_threshold"])
+    boxes = utils.postprocess(image, out, conf_threshold=conf.p["darknet_conf_threshold"], nms_threshold=conf.p["darknet_nms_threshold"])
+    pub_detections(client, boxes)
     t, _ = yolo.getPerfProfile()
     print("[yolo] cam_id: %s darknet_id: %5d time: %.2f" % (image_id, conf.p["darknet_id"], t / cv.getTickFrequency()))
     
@@ -121,13 +122,14 @@ def pub_detections(client, boxes):
   #if detections exist, fill them in
   for i, b in enumerate(boxes):
     d = Detection()
-    d.x = b[0]
-    d.y = b[1]
-    d.w = b[2]
-    d.h = b[3]
+    d.cls = b[1]
+    d.x = b[0][0]
+    d.y = b[0][1]
+    d.w = b[0][2]
+    d.h = b[0][3]
 
     #TODO currently size is just height. set to w*h or remove in future
-    d.size = b[3]
+    d.size = b[0][3]
     
     #TODO handle class
     #cls = s[i].split(":")[0]
@@ -210,7 +212,7 @@ def main():
         image = utils.load_image(os.path.join(conf.p["input_dir"], str(image_list[read_pos])), conf.p["rgb"])
         image_name = image_list[read_pos]
       #handle processing and publishing
-      process_image(image, image_id)
+      process_image(image, client, image_id)
       
   except KeyboardInterrupt:
     print("[main] Ctrl + c detected, breaking")

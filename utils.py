@@ -155,22 +155,26 @@ def postprocess(frame, outs, conf_threshold=0.25, nms_threshold=0.5):
         top = int(y_center - h / 2)
 
         class_ids.append(class_id)
-        confs.append(conf)
+        confs.append(float(conf))
         boxes.append([left, top, w, h])
 
   nms_boxes = []
+
+  #print("[pp]", boxes)
+  #print("[pp]", confs)
   
   #apply non-max suppression to qualifying boxes
   inds = cv.dnn.NMSBoxes(boxes, confs, conf_threshold, nms_threshold)
   for i in inds:
     i = i[0]
     box = boxes[i]
+    class_id = class_ids[i]
     left = box[0]
     top = box[1]
     width = box[2]
     height = box[3]
     x_center = left + width / 2.0
     y_center = top + height / 2.0
-    print("[pp] xywh: %.3f %.3f %.3f %.3f" % (left, top, width, height))
-    nms_boxes.append([])
+    #print("[pp] c: %d xywh: %.3f %.3f %.3f %.3f" % (class_id, left, top, width, height))
+    nms_boxes.append([box, class_id])
   return nms_boxes
