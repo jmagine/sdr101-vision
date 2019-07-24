@@ -27,7 +27,13 @@ is in relation to task. This includes PVC gates, buoys, path markers, and bins.
 * `python3 main.py` or `start.sh`
 
 ## How to set up forward vision pi
+General
 * Start with Raspbian Buster or latest Raspbian
+* `sudo raspi-config`
+    * Expand filesystem
+    * Enable camera
+
+Networking
 * `sudo hostname forward`
 * `sudo vim /etc/hosts` 
     * Add definitions for this and other active pis
@@ -41,9 +47,12 @@ is in relation to task. This includes PVC gates, buoys, path markers, and bins.
 * sudo vim /etc/dhcpcd.conf
     * Add static eth0 configuration pointing to 10.0.0.45
     * If running on pi with Wi-Fi (RPi 3+), add router at 10.0.1.1 and add entries at /etc/wpa_supplicant/wpa_supplicant.conf
-* `sudo raspi-config`
-    * Expand filesystem
-    * Enable camera
+* To set up the route for sonar Wi-Fi dongle (ssh pi@10.0.1.2 -p 2045):
+    * sudo vim /lib/dhcpcd/dhccpcd-hooks/40-route
+        * ip route add 10.0.1.0/24 via 10.0.0.47
+        * ip route add 224.0.0.0 dev eth0
+
+Packages
 * `sudo apt-get update`
 * `sudo apt-get install python3-pip` 
 * `sudo pip3 install numpy`
