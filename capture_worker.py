@@ -43,6 +43,7 @@ class cap_thread(threading.Thread):
     self.raw_capture = PiRGBArray(self.camera, size=self.image_size)
     self.stream = self.camera.capture_continuous(self.raw_capture, format="bgr", use_video_port=True)
     
+    self.last_output_path = ""
     self.frame = None
     
     #camera settings
@@ -79,11 +80,12 @@ class cap_thread(threading.Thread):
           self.raw_capture.truncate(0)
           continue
 
-        if image_count % 10 == 0:
+        if image_count % 100 == 0:
           print("[cap] Image count: %d\tInterval: %.3f\tImgDir: %s" % (image_count, curr_time - last_time, self.image_full_dir.split("/")[-1]))
 
         last_time = time.time()
-        cv.imwrite(os.path.join(self.image_full_dir, str(image_count) + ".jpg"), self.frame)
+        self.last_output_path = os.path.join(self.image_full_dir, str(image_count) + ".jpg")
+        cv.imwrite(self.last_output_path, self.frame)
         self.raw_capture.truncate(0)
         image_count += 1
 
