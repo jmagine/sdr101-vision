@@ -66,7 +66,11 @@ def process_image(image, client, image_id=""):
     yolo.setInput(blob)
     out = yolo.forward(utils.get_output_names(yolo))
     boxes = utils.postprocess(image, out, conf_threshold=conf.p["darknet_conf_threshold"], nms_threshold=conf.p["darknet_nms_threshold"])
-    pub_detections(client, boxes)
+    if conf.p["using_dsm"]:
+      pub_detections(client, boxes)
+    else:
+      print_detections(boxes)
+
     t, _ = yolo.getPerfProfile()
     print("[yolo] cam_id: %s darknet_id: %5d time: %.2f" % (image_id, conf.p["darknet_id"], t / cv.getTickFrequency()))
     
@@ -105,8 +109,20 @@ def process_image(image, client, image_id=""):
           conf.p["read_pos"] += 1
           break
 
+"""[print_detections]----------------------------------------------------------
+  Print deetections from YOLOv3
+----------------------------------------------------------------------------"""
+def print_detections(boxes):
+  for b in boxes:
+    cls = b[1]
+    x = b[0][0]
+    y = b[0][1]
+    w = b[0][2]
+    h = b[0][3]
+    print("[det] c: %3d\tx: %.3f\ty: %.3f\tw: %.3f\th: %.3f" % (cls, x, y, w, h))
+
 """[pub_detections]------------------------------------------------------------
-  Publishes detections to DSM
+  Publishes detections from YOLOv3 to DSM
 ----------------------------------------------------------------------------"""
 def pub_detections(client, boxes):
   #init everything to 0
@@ -153,6 +169,7 @@ def main():
   print("[init] Mode: %s" % (conf.p["mode"]))
 
   #init dsm client and buffers
+  client = None
   if conf.p["using_dsm"]:
     print("[init] Initializing DSM client")
     client = pydsm.Client(conf.p["dsm_server_id"], conf.p["dsm_client_id"], True)
@@ -161,7 +178,6 @@ def main():
     client.registerLocalBuffer(conf.p["dsm_buffer_name"], sizeof(DetectionArray), False)
     
     print("[init] DSM init complete")
-  
   #init camera
   if conf.p["using_camera"]:
     print("[init] Camera init start")
@@ -210,7 +226,7 @@ def main():
         if read_pos >= len(image_list): conf.p["read_pos"] = len(image_list) - 1
         
         image = utils.load_image(os.path.join(conf.p["input_dir"], str(image_list[read_pos])), conf.p["rgb"])
-        image_name = image_list[read_pos]
+        image_id = image_list[read_pos]
       #handle processing and publishing
       process_image(image, client, image_id)
       
