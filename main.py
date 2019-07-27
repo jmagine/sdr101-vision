@@ -62,7 +62,7 @@ def process_image(image, client, model_id=0, image_id=""):
 
   #send images through darknet and publish to DSM
   if conf.p["using_darknet"]:
-    blob = cv.dnn.blobFromImage(image, 1/255.0, conf.p["res_model_%d" % (model_id)], [0,0,0], 1, crop=False)
+    blob = cv.dnn.blobFromImage(image, 1/255.0, conf.p["res_model"][model_id], [0,0,0], 1, crop=False)
     yolo[model_id].setInput(blob)
     out = yolo[model_id].forward(utils.get_output_names(yolo[model_id]))
     boxes = utils.postprocess(image, out, conf_threshold=conf.p["darknet_conf_threshold"], nms_threshold=conf.p["darknet_nms_threshold"])
@@ -73,14 +73,14 @@ def process_image(image, client, model_id=0, image_id=""):
       box[0][2] = float(box[0][2] / conf.p["res_process"][0])
       box[0][3] = float(box[0][3] / conf.p["res_process"][1])
     
+    t, _ = yolo[model_id].getPerfProfile()
+    print("[yolo] res: %10s model_id: %d time: %.2f cam_id: %s pred_id: %5d.jpg" % (conf.p["res_model"][model_id], model_id, t / cv.getTickFrequency(), image_id, conf.p["darknet_id"]))
+    
     if conf.p["using_dsm"]:
       pub_detections(client, boxes)
     else:
       print_detections(boxes)
 
-    t, _ = yolo[model_id].getPerfProfile()
-    print("[yolo] res: %10s time: %.2f cam_id: %s pred_id: %5d.jpg" % (conf.p["res_model_%d" % (model_id)], t / cv.getTickFrequency(), image_id, conf.p["darknet_id"]))
-    
     conf.p["darknet_id"] += 1
 
   #display images
@@ -115,6 +115,7 @@ def process_image(image, client, model_id=0, image_id=""):
         elif key == ord('d') or key == ord(' '):
           conf.p["read_pos"] += 1
           break
+  return len(boxes)
 
 """[print_detections]----------------------------------------------------------
   Print deetections from YOLOv3
@@ -200,6 +201,7 @@ def main():
 
   #main loop
   try:
+    model_id = 0
     while True:
       #use frames from stream
       if conf.p["using_camera"]:
@@ -234,10 +236,15 @@ def main():
         
         image = utils.load_image(os.path.join(conf.p["input_dir"], str(image_list[read_pos])), conf.p["rgb"])
         image_id = image_list[read_pos]
+
       #handle processing and publishing
-      for model_id in range(conf.p["num_models"]):
-        process_image(image, client, model_id, image_id)
-      
+      dets = process_image(image, client, model_id, image_id)
+
+      #adaptive resolution
+      if dets == 0:
+        model_id = min(model_id + 1, len(conf.p["model_cfgs"]) - 1)
+      else:
+        model_id = max(model_id - 1, 0)
   except KeyboardInterrupt:
     print("[main] Ctrl + c detected, breaking")
 
@@ -261,12 +268,12 @@ if conf.p["using_darknet"]:
   conf.p["darknet_id"] = 0
   
   yolo = []
-  for model_id in range(conf.p["num_models"]):
+  for model_id in range(len(conf.p["model_cfgs"])):
     classes = None
-    with open(conf.p["model_%d_names" % (model_id)], "rt") as f:
+    with open(conf.p["model_names"][model_id], "rt") as f:
       classes = f.read().rstrip("\n").split("\n")
     
-    yolo.append(cv.dnn.readNetFromDarknet(conf.p["model_%d_cfg" % (model_id)], conf.p["model_%d_weights" % (model_id)]))
+    yolo.append(cv.dnn.readNetFromDarknet(conf.p["model_cfgs"][model_id], conf.p["model_weights"][model_id]))
   
 if __name__ == '__main__':
   main()

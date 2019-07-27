@@ -35,7 +35,8 @@ class Config():
 
         if param == "":
           continue
-
+        
+        print("[pc] Loading:", param)
         value = ast.literal_eval(value)
         
         self.p[param] = value
