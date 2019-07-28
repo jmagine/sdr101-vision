@@ -48,11 +48,13 @@ RES_240 = (320, 240)
 ----------------------------------------------------------------------------'''
 def process_image(image, client, model_id=0, image_id=""):
   
+  image_pred = None
+
   #[sanity checks]-------------------------------------------------------------
   if image is None:
     print("[proc] Image is None")
-    sys.exit(1)
-  
+    return 0
+
   #[preprocessing]-------------------------------------------------------------
   #resize images to low or mid res for faster processing
   image = cv.resize(image, conf.p["res_process"], interpolation = cv.INTER_CUBIC)
@@ -67,6 +69,11 @@ def process_image(image, client, model_id=0, image_id=""):
     out = yolo[model_id].forward(utils.get_output_names(yolo[model_id]))
     boxes = utils.postprocess(image, out, conf_threshold=conf.p["darknet_conf_threshold"], nms_threshold=conf.p["darknet_nms_threshold"])
     
+    #use integer coords for drawing
+    if conf.p["display_type"] != "no_disp":
+      image_pred = utils.draw_preds(image, boxes, classes)
+    
+    #use normalized coords for dsm
     for box in boxes:
       box[0][0] = float(box[0][0] / conf.p["res_process"][0])
       box[0][1] = float(box[0][1] / conf.p["res_process"][1])
@@ -76,58 +83,26 @@ def process_image(image, client, model_id=0, image_id=""):
     t, _ = yolo[model_id].getPerfProfile()
     print("[yolo] res: %10s model_id: %d time: %.2f cam_id: %s pred_id: %5d.jpg" % (conf.p["res_model"][model_id], model_id, t / cv.getTickFrequency(), image_id, conf.p["darknet_id"]))
     
+    #publish to dsm or print detections
     if conf.p["using_dsm"]:
       pub_detections(client, boxes)
     else:
       print_detections(boxes)
-
-    conf.p["darknet_id"] += 1
-
-  #display images
-  if conf.p["display_type"] != "no_disp":
-    images = []
-    images.append(image)
-    utils.display_stacked(images, RES_240, 1, 1)
-  
-    #do not wait for input, but wait enough to display images
-    # also holding q will usually allow the pi to quit
-    if conf.p["display_type"] == "no_input":
-      key = cv.waitKey(50)
-      if key == ord('q'):
-        print("[proc] Detected q, exiting")
-        sys.exit(0)
-
-    #wait for input from user, use space or arrow keys to advance/nav stream
-    elif conf.p["display_type"] == "wasd_input":
-      print("[proc] wasd")
-      key = ''
-      while True:
-        key = cv.waitKey(1000)
-        if key == ord('q'):
-          print("[proc] Detected q, exiting")
-          sys.exit(0)
-
-        #left
-        elif key == ord('a'):
-          conf.p["read_pos"] -= 1
-          break
-        #right
-        elif key == ord('d') or key == ord(' '):
-          conf.p["read_pos"] += 1
-          break
-  return len(boxes)
+    
+  return len(boxes), image_pred
 
 """[print_detections]----------------------------------------------------------
   Print deetections from YOLOv3
 ----------------------------------------------------------------------------"""
 def print_detections(boxes):
   for b in boxes:
-    cls = b[1]
-    x = b[0][0]
-    y = b[0][1]
+    cls = b[1][0]
+    cnf = b[1][1]
+    x = b[0][0] + b[0][2] / 2.0
+    y = b[0][1] + b[0][3] / 2.0
     w = b[0][2]
     h = b[0][3]
-    print("[det] c: %3d\txywh: %.3f %.3f %.3f %.3f" % (cls, x, y, w, h))
+    print("[det] | %7s %.2f |\txywh: %.2f %.2f %.2f %.2f" % (classes[cls], cnf, x, y, w, h))
 
 """[pub_detections]------------------------------------------------------------
   Publishes detections from YOLOv3 to DSM
@@ -146,27 +121,19 @@ def pub_detections(client, boxes):
   #if detections exist, fill them in
   for i, b in enumerate(boxes):
     d = Detection()
-    d.cls = b[1]
-    d.x = b[0][0]
-    d.y = b[0][1]
+    d.cls = int(b[1][0])
+    d.cnf = b[1][1]
+    d.x = float(b[0][0] + b[0][2] / 2.0)
+    d.y = b[0][1] + b[0][3] / 2.0
     d.w = b[0][2]
     d.h = b[0][3]
 
     #TODO currently size is just height. set to w*h or remove in future
     d.size = b[0][3]
     
-    #TODO handle class
-    #cls = s[i].split(":")[0]
-    #if "aswang" in cls:     d.cls = 0
-    #elif "draugr" in cls:   d.cls = 1
-    #elif "vetalas" in cls:  d.cls = 2
-    #elif "jiangshi" in cls: d.cls = 3
-    #elif "gate" in cls:     d.cls = 4
-    #elif "bat" in cls:      d.cls = 5
-    #elif "wolf" in cls:     d.cls = 6
-
     d_a.detections[i] = d
-    print("[pub] c: %3d\txywh: %.3f %.3f %.3f %.3f" % (d.cls, d.x, d.y, d.w, d.h))
+
+    print("[pub] | %7s %.2f |\txywh: %.2f %.2f %.2f %.2f" % (classes[d.cls], d.cnf, d.x, d.y, d.w, d.h))
   
   client.setLocalBufferContents(conf.p["dsm_buffer_name"], pack(d_a))
 
@@ -189,7 +156,6 @@ def main():
   #init camera
   if conf.p["using_camera"]:
     print("[init] Camera init start")
-    import capture_worker
     try:
       c_t = capture_worker.cap_thread(conf.p["res_capture"], conf.p["output_dir"])
       c_t.start()
@@ -198,6 +164,10 @@ def main():
     except Exception as e:
       print("[main] [error]: " + str(e))
     print("[init] Camera init complete")
+  
+  if conf.p["display_type"] != "no_disp":
+    d_t = display_worker.display_thread(conf, c_t)
+    d_t.start()
 
   #main loop
   try:
@@ -238,8 +208,16 @@ def main():
         image_id = image_list[read_pos]
 
       #handle processing and publishing
-      dets = process_image(image, client, model_id, image_id)
-
+      dets, image_pred = process_image(image, client, model_id, image_id)
+      
+      if conf.p["using_camera"]:
+        cv.imwrite(os.path.join(c_t.image_full_dir, "darknet", str(conf.p["darknet_id"]) + ".jpg"), image_pred)
+        conf.p["darknet_id"] += 1
+      
+      #update predictions on display
+      if conf.p["display_type"] != "no_disp":
+        d_t.images[1] = image_pred
+        
       #adaptive resolution
       if dets == 0:
         model_id = min(model_id + 1, len(conf.p["model_cfgs"]) - 1)
@@ -263,16 +241,20 @@ if conf.p["using_dsm"]:
 if conf.p["using_camera"]:
   from picamera.array import PiRGBArray
   from picamera import PiCamera
+  import capture_worker
+
+if conf.p["display_type"] != "no_disp":
+  import display_worker
+  cv.namedWindow("[stacked]", cv.WINDOW_NORMAL)
 
 if conf.p["using_darknet"]:
   conf.p["darknet_id"] = 0
   
+  #assuming all models use same classes
+  classes = utils.load_classes(conf.p["model_names"][0])
+  
   yolo = []
   for model_id in range(len(conf.p["model_cfgs"])):
-    classes = None
-    with open(conf.p["model_names"][model_id], "rt") as f:
-      classes = f.read().rstrip("\n").split("\n")
-    
     yolo.append(cv.dnn.readNetFromDarknet(conf.p["model_cfgs"][model_id], conf.p["model_weights"][model_id]))
   
 if __name__ == '__main__':

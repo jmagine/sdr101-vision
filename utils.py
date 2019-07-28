@@ -121,6 +121,37 @@ def display_stacked(images, res, rows, cols):
 
   cv.imshow("[stacked]", stacked_img)
 
+"""[load_classes]--------------------------------------------------------------
+  Load classes from names file
+----------------------------------------------------------------------------"""
+def load_classes(class_file):
+  classes = None
+  with open(class_file, 'rt') as f:
+    classes = f.read().rstrip("\n").split("\n")
+  return classes
+
+"""[draw_preds]----------------------------------------------------------------
+  Draws YOLO predictions onto image with class and conf  
+----------------------------------------------------------------------------"""
+def draw_preds(image, boxes, classes):
+  image_preds = image.copy()
+  
+  for b in boxes:
+    cls = b[1][0]
+    cnf = b[1][1]
+    x = b[0][0]
+    y = b[0][1]
+    w = b[0][2]
+    h = b[0][3]
+    #cv.rectangle(image_preds, (x, y), (x+w, y+h), (cls*32, 255-cls*32, 0), 1)
+    cv.rectangle(image_preds, (x, y), (x+w, y+h), (0, 255, 0), 1)
+    label = "%s %.2f" % (classes[cls], cnf)
+    label_size, base_line = cv.getTextSize(label, cv.FONT_HERSHEY_PLAIN, 0.5, 1)
+    y = max(y, label_size[1])
+    cv.rectangle(image_preds, (x, y - label_size[1]), (x + label_size[0], y + base_line), (255, 255, 255), cv.FILLED)
+    cv.putText(image_preds, label, (x, y), cv.FONT_HERSHEY_PLAIN, 0.5, (0, 0, 0))
+  return image_preds
+
 """[get_output_names]----------------------------------------------------------
   returns output layer class names
 ----------------------------------------------------------------------------"""
@@ -170,6 +201,7 @@ def postprocess(frame, outs, conf_threshold=0.25, nms_threshold=0.5):
     i = i[0]
     box = boxes[i]
     class_id = class_ids[i]
+    conf = confs[i]
     left = box[0]
     top = box[1]
     width = box[2]
@@ -177,5 +209,5 @@ def postprocess(frame, outs, conf_threshold=0.25, nms_threshold=0.5):
     x_center = left + width / 2.0
     y_center = top + height / 2.0
     #print("[pp] c: %d xywh: %.3f %.3f %.3f %.3f" % (class_id, left, top, width, height))
-    nms_boxes.append([box, class_id])
+    nms_boxes.append([box, [class_id, conf]])
   return nms_boxes
