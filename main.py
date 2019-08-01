@@ -197,19 +197,8 @@ def main():
         model_id = max(model_id - 1, 0)
   except KeyboardInterrupt:
     print("[main] Ctrl + c received")
-    smooth_exit([c_t, d_t])
   except Exception as e:
     print("[main] [error] %s" % (str(e)))
-    smooth_exit([c_t, d_t])
-    
-  smooth_exit([c_t, d_t])
-
-#terminate nicely
-def smooth_exit(threads):
-  for t in threads:
-    if t is not None:
-      t.callback("end")
-      t.join()
 
 #TODO merge with main init
 '''[init]----------------------------------------------------------------------
