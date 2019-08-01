@@ -209,6 +209,7 @@ def smooth_exit(threads):
   for t in threads:
     if t is not None:
       t.callback("end")
+      t.join()
 
 #TODO merge with main init
 '''[init]----------------------------------------------------------------------
