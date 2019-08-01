@@ -81,8 +81,9 @@ class Config():
 ----------------------------------------------------------------------------'''
 def find_heading(image, box):
   
+  heading = 0
   if image is None:
-    return 0
+    return 0, None
 
   #assumes box is x,y,w,h
   x = box[0]

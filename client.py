@@ -7,12 +7,12 @@ import pickle
 import threading
 
 disp_forward = True
-disp_downward = False
+disp_downward = True
 forward_host = "10.0.1.2"
-forward_port = 9000
+forward_port = 5000
 downward_host = "10.0.1.2"
-downward_port = 9001
-res_display = (640, 480)
+downward_port = 5001
+res_display = (480, 360)
 num_rows = 1
 num_cols = 3
 
@@ -25,12 +25,17 @@ class vision_client(threading.Thread):
     self.name = name
 
   def run(self):
+    while True:
+      try:
+        print("[client][%s] connecting to: %s:%d" % (self.name, self.host, self.port))
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket.connect((self.host, self.port))
+        conn = client_socket.makefile('rb')
+        break
+      except Exception as e:
+        print("[client][%s] Error: %s" % (self.name, str(e)))
+    
     try:
-      print("[client][%s] attempting to connect: %s %d" % (self.name, self.host, self.port))
-      client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      client_socket.connect(('10.0.1.2', 9000))
-      conn = client_socket.makefile('rb')
-
       data = b""
       payload_size = struct.calcsize(">L")
       print("[client][%s] payload_size: %d" % (self.name, payload_size))
@@ -59,6 +64,8 @@ class vision_client(threading.Thread):
 
     except Exception as e:
       print(str(e)) 
+    
+    print("[client][%s] disconnecting from: %s:%d" % (self.name, self.host, self.port))
 
 if __name__ == "__main__":
   if disp_forward:
