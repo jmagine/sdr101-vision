@@ -1,12 +1,15 @@
 '''*-----------------------------------------------------------------------*---
                                                          Author: Jason Ma
                                                          Date  : Aug 15 2018
-                                    vision
+                                     vision
 
-  File Name  : main.py
-  Description: Main application for vision module, looks for targets as
-               specified by master module or manually specified. Submodule
-               config located in config.cfg, including DSM, darknet, and cam.
+  File: main.py
+  Desc: Main application for vision module:
+        - Continuously saves images to new directory for each capture
+        - Can playback images from previous captures
+        - Detects mission objectives using yolo
+        - Prints or publishes detections to dsm
+        Submodule config at config.cfg, including dsm, yolo, and cam.
 ---*-----------------------------------------------------------------------*'''
 
 import utils
@@ -53,8 +56,7 @@ def process_image(image, client, model_id=0, image_id=""):
 
   #[sanity checks]-------------------------------------------------------------
   if image is None:
-    print("[proc] Image is None")
-    return 0
+    return 0, None, None
   
   height = image.shape[0]
   width = image.shape[1]
@@ -65,17 +67,17 @@ def process_image(image, client, model_id=0, image_id=""):
   if not conf.p["rgb"]:
     image = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
 
-  #send images through darknet and publish to DSM
-  if conf.p["using_darknet"]:
+  #send images through yolo and publish to DSM
+  if conf.p["using_yolo"]:
     blob = cv.dnn.blobFromImage(image, 1/255.0, conf.p["res_model"][model_id], [0,0,0], 1, crop=False)
     yolo[model_id].setInput(blob)
     out = yolo[model_id].forward(utils.get_output_names(yolo[model_id]))
-    boxes = utils.postprocess(image, out, conf_threshold=conf.p["darknet_conf_threshold"], nms_threshold=conf.p["darknet_nms_threshold"])
+    boxes = utils.postprocess(image, out, conf_threshold=conf.p["yolo_conf_thres"], nms_threshold=conf.p["yolo_nms_thres"])
     boxes = utils.organize_dets(boxes)
 
     #if anything looks like path marker, find heading
     for box in boxes:
-      box[1][3] = conf.p["darknet_id"]
+      box[1][3] = conf.p["pred_id"]
 
       heading = 0
       if classes[box[1][0]] == "marker":
@@ -107,8 +109,8 @@ def process_image(image, client, model_id=0, image_id=""):
     image_pred = utils.draw_preds(image_draw, boxes, classes)
     
     t, _ = yolo[model_id].getPerfProfile()
-    print("[yolo] model: %d %10s t: %.2f cam: %9s pred: %5d.jpg" % (model_id, conf.p["res_model"][model_id], t / cv.getTickFrequency(), image_id, conf.p["darknet_id"]))
-     
+    print("[yolo] t: %.2f model: %d %10s cam: %5d pred: %5d" % (t / cv.getTickFrequency(), model_id, conf.p["res_model"][model_id], image_id, conf.p["pred_id"]))
+    
     #publish to dsm or print detections
     return len(boxes), image_pred, image_orange
   
@@ -116,58 +118,50 @@ def process_image(image, client, model_id=0, image_id=""):
   
 ----------------------------------------------------------------------------'''
 def main():
-  print("[init] Mode: %s" % (conf.p["mode"]))
+  print("[init] Mode:\t%s" % (conf.p["mode"]))
+  print("[init] dsm:\t%s" % (conf.p["using_dsm"]))
+  print("[init] camera:\t%s" % (conf.p["using_camera"]))
+  print("[init] disp:\t%s" % (conf.p["using_dsm"]))
 
   #init dsm client and buffers
   client = None
   if conf.p["using_dsm"]:
-    print("[init] Initializing DSM")
+    print("[init] Initializing dsm")
     client = pydsm.Client(conf.p["dsm_server_id"], conf.p["dsm_client_id"], True)
     client.registerLocalBuffer(conf.p["dsm_buffer_name"], sizeof(DetectionArray), False)
-    time.sleep(1)
-
-    print("[init] DSM init complete")
+    #time.sleep(1)
+  
   #init camera
   c_t = None
   if conf.p["using_camera"]:
-    print("[init] Camera init start")
-    try:
-      c_t = capture_worker.cap_thread(conf.p["res_capture"], conf.p["output_dir"])
-      c_t.start()
-
-      os.makedirs(os.path.join(c_t.image_full_dir, "darknet"))
-    except Exception as e:
-      print("[main] [error]: " + str(e))
-    print("[init] Camera init complete")
+    print("[init] Initializing camera")
+    c_t = capture_worker.cap_thread(conf.p["res_capture"], conf.p["output_dir"])
+    c_t.start()
+    os.makedirs(os.path.join(c_t.image_full_dir, conf.p["pred_dir"]))
   
+  #init display
+  d_t = None
   if conf.p["using_disp"]:
+    print("[init] Initializing display")
     d_t = display_worker.display_thread(conf, c_t)
     d_t.start()
 
   #main loop
+  model_id = 0
   try:
-    model_id = 0
     while True:
       #use frames from stream
       if conf.p["using_camera"]:
-        image_list = os.listdir(c_t.image_full_dir)
-        for img in image_list:
-          if len(img.split(".")) < 2 or img.split(".")[1] != "jpg":
-            image_list.remove(img)
-        image_list.sort(key = lambda x: int(x.split(".")[0]), reverse=True)
-        
-        if len(image_list) < 2:
-          print("[main] Stream not initialized yet, waiting")
-          time.sleep(1)
-          continue
-        #note: can return empty frames before capture worker is fully init
-        #print("[main] Pulling frame: %s" % (image_list[1]))
         image = c_t.frame
-        image_id = image_list[1]
+        image_id = c_t.image_count
+
+        if image is None:
+          continue
 
       #read image from input dir
       else:
         #find all images
+        #TODO clean this up a bit, looks stupid
         image_list = os.listdir(conf.p["input_dir"])
         for img in image_list:
           if len(img.split(".")) < 2 or img.split(".")[1] != "jpg":
@@ -186,8 +180,8 @@ def main():
       dets, image_pred, image_orange = process_image(image, client, model_id, image_id)
       
       if conf.p["using_camera"]:
-        cv.imwrite(os.path.join(c_t.image_full_dir, "darknet", str(conf.p["darknet_id"]) + ".jpg"), image_pred)
-        conf.p["darknet_id"] += 1
+        cv.imwrite(os.path.join(c_t.image_full_dir, conf.p["pred_dir"], str(conf.p["pred_id"]) + ".jpg"), image_pred)
+        conf.p["pred_id"] += 1
       
       #update predictions on display
       if conf.p["using_disp"]:
@@ -202,14 +196,24 @@ def main():
       else:
         model_id = max(model_id - 1, 0)
   except KeyboardInterrupt:
-    print("[main] Ctrl + c detected, breaking")
+    print("[main] Ctrl + c received")
+    smooth_exit([c_t, d_t])
   except Exception as e:
     print("[main] [error] %s" % (str(e)))
+    smooth_exit([c_t, d_t])
+    
+  smooth_exit([c_t, d_t])
+
+#terminate nicely
+def smooth_exit(threads):
+  for t in threads:
+    if t is not None:
+      t.callback("end")
 
 #TODO merge with main init
-"""[init]----------------------------------------------------------------------
+'''[init]----------------------------------------------------------------------
   Parses config, initializes vision modules
-----------------------------------------------------------------------------"""
+----------------------------------------------------------------------------'''
 conf = utils.Config()
 conf.parse_conf("config.cfg")
 
@@ -225,10 +229,9 @@ if conf.p["using_camera"]:
 
 if conf.p["using_disp"]:
   import display_worker
-  #cv.namedWindow("[stacked]", cv.WINDOW_NORMAL)
 
-if conf.p["using_darknet"]:
-  conf.p["darknet_id"] = 0
+if conf.p["using_yolo"]:
+  conf.p["pred_id"] = 0
   
   #assuming all models use same classes
   classes = utils.load_classes(conf.p["model_names"][0])

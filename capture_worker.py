@@ -1,10 +1,11 @@
 '''*-----------------------------------------------------------------------*---
                                                          Author: Jason Ma
                                                          Date  : Aug 01 2018
-                                      TODO
+                                     vision
 
-  File Name  : capture_worker.py
-  Description: TODO
+  File: capture_worker.py
+  Desc: Continuously saves images from rpi-camera stream. These can also be
+        fed directly into vision processing pipeline for detections.
 ---*-----------------------------------------------------------------------*'''
 
 import os
@@ -27,6 +28,9 @@ RES_240 = (320, 240)
 
 MIN_IMAGE_INTERVAL = 0.1
 
+'''[cap_thread]----------------------------------------------------------------
+  Capture thread to separate camera handling from processing
+----------------------------------------------------------------------------'''
 class cap_thread(threading.Thread):
   def __init__(self, image_size, image_dir):
     super(cap_thread, self).__init__()
@@ -45,6 +49,7 @@ class cap_thread(threading.Thread):
     
     self.last_output_path = ""
     self.frame = None
+    self.image_count = 0
     
     #camera settings
     self.camera.exposure_mode = 'auto'
@@ -54,23 +59,19 @@ class cap_thread(threading.Thread):
     self.camera.hflip = False
     self.camera.vflip = False
 
-    print("[cap] Thread initialized")
-
   def callback(self, msg):
     if msg == 'end':
-      self.end_thread = True      
-        
+      self.end_thread = True
+
   def run(self):
-    
     #publish the live directory for the processor to handle stream
     with open("live_dir.log", 'w') as f:
       f.write(self.image_full_dir + "\n")
 
-      print("[cap] Capture started")
+      print("[cap] Thread started")
       self.capture_started = True
 
       last_time = time.time()
-      image_count = 0
       
       for f in self.stream:
         curr_time = time.time()
@@ -80,18 +81,18 @@ class cap_thread(threading.Thread):
           self.raw_capture.truncate(0)
           continue
 
-        if image_count % 100 == 0:
-          print("[cap] Image count: %d\tInterval: %.3f\tImgDir: %s" % (image_count, curr_time - last_time, self.image_full_dir.split("/")[-1]))
+        if self.image_count % 100 == 0:
+          print("[cap] t: %.3f --- count: %d --- dir: %s" % (curr_time - last_time, self.image_count, self.image_full_dir.split("/")[-1]))
 
         last_time = time.time()
-        self.last_output_path = os.path.join(self.image_full_dir, str(image_count) + ".jpg")
+        self.last_output_path = os.path.join(self.image_full_dir, str(self.image_count) + ".jpg")
         cv.imwrite(self.last_output_path, self.frame)
         self.raw_capture.truncate(0)
-        image_count += 1
+        self.image_count += 1
 
         if self.end_thread:
-          print("[cap] Termination signal received from main thread")
-          self.stream.close()
-          self.raw_capture.close()
-          self.camera.close()
           break
+    self.stream.close()
+    self.raw_capture.close()
+    self.camera.close()
+    print("[cap] Thread stopped")

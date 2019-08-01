@@ -1,10 +1,12 @@
 """*-----------------------------------------------------------------------*---
                                                          Author: Jason Ma
                                                          Date  : Jul 23 2019
-                                      TODO
+                                     vision
 
   File: display_worker.py
-  Desc: TODO
+  Desc: Sends multi-image stream to port for display on a networked device.
+        Can either be connected to on the exposed port or forwarded port on
+        another device if tunnel is set up (sonar).
 ---*-----------------------------------------------------------------------*"""
 
 
@@ -18,9 +20,11 @@ import sys
 import threading
 import time
 
-
 import utils
 
+'''[display_thread]------------------------------------------------------------
+  Sets up TCP server for multi-image stream
+----------------------------------------------------------------------------'''
 class display_thread(threading.Thread):
   def __init__(self, conf, c_t=None):
     super(display_thread, self).__init__()
@@ -29,11 +33,9 @@ class display_thread(threading.Thread):
     self.images = None
     self.conf = conf
     self.c_t = c_t
-    self.host="127.0.0.1"
-    self.port=5000
+    self.host = "127.0.0.1"
+    self.port = self.conf.p["disp_port"]
     
-    print("[disp] Thread initialized")
-
   def callback(self, msg):
     if msg == 'end':
       self.running = False
@@ -55,10 +57,8 @@ class display_thread(threading.Thread):
 
     #start a server socket
     server=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-    print('Socket created')
-
     server.bind((self.host, self.port))
-    print("[disp] socket bound: %s %d" % (self.host, self.port))
+    print("[disp] socket bound: %s:%d" % (self.host, self.port))
     server.listen(10)
     print("[disp] socket listening")
 
@@ -68,7 +68,7 @@ class display_thread(threading.Thread):
         client, addr = server.accept()
         print("[disp] client connected: %s" % (str(addr)))
 
-        while True:
+        while self.running:
           #fast stream for camera capture
           if self.c_t.frame is not None:
             self.images[0] = self.c_t.frame

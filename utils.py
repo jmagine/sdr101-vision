@@ -1,10 +1,11 @@
 '''*-----------------------------------------------------------------------*---
                                                          Author: Jason Ma
                                                          Date  : Sep 06 2018
-                                 forward-vision
+                                     vision
 
-  File Name  : utils.py
-  Description: Some useful things that CV module can utilize
+  File: utils.py
+  Desc: Some useful utilities for vision module, including a config parser,
+        heading finder, custom detection handling, io
 ---*-----------------------------------------------------------------------*'''
 
 import os
@@ -26,9 +27,9 @@ from serialization import *
 from ctypes import sizeof
 from master import *
 
-"""[Config]--------------------------------------------------------------------
+'''[Config]--------------------------------------------------------------------
   Stores configuration for use in rest of vision
-----------------------------------------------------------------------------"""
+----------------------------------------------------------------------------'''
 class Config():
   def __init__(self):
     self.p = {}
@@ -49,7 +50,7 @@ class Config():
         if param == "":
           continue
         
-        print("[pc] loading: %s = %s" % (param, value))
+        print("[pc] loading: %-16s = %s" % (param, value))
         value = ast.literal_eval(value)
         
         self.p[param] = value
@@ -75,9 +76,9 @@ class Config():
       self.p["using_dsm"] = 1
       self.p["using_camera"] = 1
 
-"""[find_heading]--------------------------------------------------------------
+'''[find_heading]--------------------------------------------------------------
   Find the angle of marker
-----------------------------------------------------------------------------"""
+----------------------------------------------------------------------------'''
 def find_heading(image, box):
   
   if image is None:
@@ -129,25 +130,41 @@ def find_heading(image, box):
   image_orange = cv.cvtColor(image_orange, cv.COLOR_GRAY2BGR)
   return heading, image_orange
 
-"""[print_detections]----------------------------------------------------------
+'''[print_detections]----------------------------------------------------------
   Print deetections from YOLOv3
-----------------------------------------------------------------------------"""
+----------------------------------------------------------------------------'''
 def print_detections(boxes, classes):
   for b in boxes:
     cls = b[1][0]
     cnf = b[1][1]
     cxt = b[1][2]
-    index = b[1][3]
+    idx = b[1][3]
 
     x = b[0][0] + b[0][2] / 2.0
     y = b[0][1] + b[0][3] / 2.0
     w = b[0][2]
     h = b[0][3]
+
+    #context for sizes
+    #forward classes
+    if classes[cls] == "aswang":
+      cxt = b[0][2] * b[0][3]
+    elif classes[cls] == "draugr":
+      cxt = b[0][2] * b[0][3]
+    elif classes[cls] == "vetalas":
+      cxt = b[0][2] * b[0][3]
+    elif classes[cls] == "jiangshi":
+      cxt = b[0][2] * b[0][3]
+
+    #sanity check for cxt
+    if cxt is None:
+      cxt = 0
+
     print("[det] | %7s %.2f | %.4f | %.2f %.2f %.2f %.2f" % (classes[cls], cnf, cxt, x, y, w, h))
 
-"""[pub_detections]------------------------------------------------------------
+'''[pub_detections]------------------------------------------------------------
   Publishes detections from YOLOv3 to DSM
-----------------------------------------------------------------------------"""
+----------------------------------------------------------------------------'''
 def pub_detections(client, buffer_name, boxes, classes):
   #init everything to 0
   d_a = DetectionArray()
@@ -197,10 +214,9 @@ def pub_detections(client, buffer_name, boxes, classes):
   
   client.setLocalBufferContents(buffer_name, pack(d_a))
 
-
-"""[draw_preds]----------------------------------------------------------------
+'''[draw_preds]----------------------------------------------------------------
   Draws YOLO predictions onto image with class and conf  
-----------------------------------------------------------------------------"""
+----------------------------------------------------------------------------'''
 def draw_preds(image, boxes, classes):
   image_preds = image.copy()
   
@@ -225,16 +241,16 @@ def draw_preds(image, boxes, classes):
     cv.putText(image_preds, label, (x, y), cv.FONT_HERSHEY_PLAIN, 0.5, (0, 0, 0), 1, cv.LINE_AA)
   return image_preds
 
-"""[get_output_names]----------------------------------------------------------
+'''[get_output_names]----------------------------------------------------------
   returns output layer class names
-----------------------------------------------------------------------------"""
+----------------------------------------------------------------------------'''
 def get_output_names(net):
   layer_names = net.getLayerNames()
   return [layer_names[i[0] - 1] for i in net.getUnconnectedOutLayers()]
 
-"""[organize_dets]-------------------------------------------------------------
+'''[organize_dets]-------------------------------------------------------------
   Sort detections by x coord
-----------------------------------------------------------------------------"""
+----------------------------------------------------------------------------'''
 def organize_dets(boxes):
   for i1 in range(len(boxes)):
     for i2 in range(len(boxes)):
@@ -245,11 +261,11 @@ def organize_dets(boxes):
 
   return boxes
 
-"""[postprocess]---------------------------------------------------------------
+'''[postprocess]---------------------------------------------------------------
   yolov3 postprocessing:
   - confidence filtering
   - non-max suppression
-----------------------------------------------------------------------------"""
+----------------------------------------------------------------------------'''
 def postprocess(frame, outs, conf_threshold=0.25, nms_threshold=0.5):
   frame_h = frame.shape[0]
   frame_w = frame.shape[1]
@@ -295,7 +311,6 @@ def postprocess(frame, outs, conf_threshold=0.25, nms_threshold=0.5):
     nms_boxes.append([box, [class_id, conf, None, None]])
   return nms_boxes
 
-
 '''[load_classes]--------------------------------------------------------------
   Load classes from names file
 ----------------------------------------------------------------------------'''
@@ -305,7 +320,7 @@ def load_classes(class_file):
     classes = f.read().rstrip("\n").split("\n")
   return classes
 
-'''[stack_images]-----------------------------------------------------------
+'''[stack_images]--------------------------------------------------------------
   Stacks images in specified grid pattern
 ----------------------------------------------------------------------------'''
 def stack_images(images, res, rows, cols):
@@ -335,17 +350,17 @@ def stack_images(images, res, rows, cols):
   Generates directory for new captures
 ----------------------------------------------------------------------------'''
 def gen_dir(images_dir):
-  print("[gen_dir] Checking for general directory at: " + images_dir)
+  print("[gen_dir] Checking dir: " + images_dir)
 
   if not os.path.exists(images_dir):
-    print("[gen_dir] Creating directory at: " + images_dir)
+    print("[gen_dir] Creating dir: " + images_dir)
     os.makedirs(images_dir)
   
   subdir_count = 0
   while True:
     images_dir_subdir = os.path.join(images_dir, str(subdir_count))
     if not os.path.exists(images_dir_subdir):
-      print("[gen_dir] Creating directory at: " + images_dir_subdir)
+      print("[gen_dir] Creating dir: " + images_dir_subdir)
       os.makedirs(images_dir_subdir)
       images_dir_full = images_dir_subdir
       break
