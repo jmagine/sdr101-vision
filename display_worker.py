@@ -7,12 +7,17 @@
   Desc: TODO
 ---*-----------------------------------------------------------------------*"""
 
-import os
-import threading
+
 import cv2 as cv
 import numpy as np
-import time
+import os
+import pickle
+import socket
+import struct
 import sys
+import threading
+import time
+
 
 import utils
 
@@ -24,6 +29,8 @@ class display_thread(threading.Thread):
     self.images = None
     self.conf = conf
     self.c_t = c_t
+    self.host="127.0.0.1"
+    self.port=5000
     
     print("[disp] Thread initialized")
 
@@ -34,54 +41,61 @@ class display_thread(threading.Thread):
   def run(self):
     print("[disp] Thread started")
 
+    #stop thread if not enabled
+    if not self.conf.p["using_disp"]:
+      print("[disp] NO DISP, ending thread")
+      return
+    
+    #init images array for other threads to use
     self.images = []
     for i in range(self.conf.p["disp_cols"] * self.conf.p["disp_rows"]):
-      self.images.append(np.zeros((16, 16, 3)))
+      self.images.append(np.zeros((self.conf.p["res_display"][0], self.conf.p["res_display"][1], 3), np.uint8))
     
+    encode_param = [int(cv.IMWRITE_JPEG_QUALITY), 90]
+
+    #start a server socket
+    server=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+    print('Socket created')
+
+    server.bind((self.host, self.port))
+    print("[disp] socket bound: %s %d" % (self.host, self.port))
+    server.listen(10)
+    print("[disp] socket listening")
+
     while self.running:
-      
-      #update images
-      if self.c_t:
-        self.images[0] = self.c_t.frame
+      #send image to any clients
+      try:
+        client, addr = server.accept()
+        print("[disp] client connected: %s" % (str(addr)))
 
-      #check for image validity
-      invalid_image = False
-      for img in self.images:
-        if img is None:
-          invalid_image = True
+        while True:
+          #fast stream for camera capture
+          if self.c_t.frame is not None:
+            self.images[0] = self.c_t.frame
 
-      if invalid_image:
-        time.sleep(1)
-        continue
+          #check for image validity
+          invalid_image = False
+          for img in self.images:
+            if img is None:
+              invalid_image = True
 
-      #display images
-      if self.conf.p["display_type"] != "no_disp":
-        utils.display_stacked(self.images, self.conf.p["res_display"], self.conf.p["disp_rows"], self.conf.p["disp_cols"])
-      
-        #do not wait for input, but wait enough to display images
-        # also holding q will usually allow the pi to quit
-        if self.conf.p["display_type"] == "no_input":
-          key = cv.waitKey(50)
-          if key == ord('q'):
-            print("[proc] Detected q, exiting")
-            sys.exit(0)
+          if invalid_image:
+            time.sleep(1)
+            continue
 
-        #wait for input from user, use space or arrow keys to advance/nav stream
-        elif self.conf.p["display_type"] == "wasd_input":
-          print("[proc] wasd")
-          key = ''
-          while True:
-            key = cv.waitKey(1000)
-            if key == ord('q'):
-              print("[proc] Detected q, exiting")
-              sys.exit(0)
+          stacked_image = utils.stack_images(self.images, self.conf.p["res_display"], self.conf.p["disp_rows"], self.conf.p["disp_cols"])
+          
+          if stacked_image is None:
+            continue
 
-            #left
-            elif key == ord('a'):
-              self.conf.p["read_pos"] -= 1
-              break
-            #right
-            elif key == ord('d') or key == ord(' '):
-              self.conf.p["read_pos"] += 1
-              break
+          _, frame = cv.imencode('.jpg', stacked_image, encode_param)
+          data = pickle.dumps(frame, 0)
+          size = len(data)
+
+          time.sleep(1)
+          
+          client.sendall(struct.pack(">L", size) + data)
+      except Exception as e:
+        print("[disp] [error]", str(e))
+            
     print("[disp] Thread stopped")

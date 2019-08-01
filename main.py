@@ -49,16 +49,19 @@ RES_240 = (320, 240)
 def process_image(image, client, model_id=0, image_id=""):
   
   image_pred = None
+  image_orange = None
 
   #[sanity checks]-------------------------------------------------------------
   if image is None:
     print("[proc] Image is None")
     return 0
+  
+  height = image.shape[0]
+  width = image.shape[1]
+  channels = image.shape[2]
 
   #[preprocessing]-------------------------------------------------------------
   #resize images to low or mid res for faster processing
-  image = cv.resize(image, conf.p["res_process"], interpolation = cv.INTER_CUBIC)
-
   if not conf.p["rgb"]:
     image = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
 
@@ -68,75 +71,47 @@ def process_image(image, client, model_id=0, image_id=""):
     yolo[model_id].setInput(blob)
     out = yolo[model_id].forward(utils.get_output_names(yolo[model_id]))
     boxes = utils.postprocess(image, out, conf_threshold=conf.p["darknet_conf_threshold"], nms_threshold=conf.p["darknet_nms_threshold"])
-    
-    #use integer coords for drawing
-    if conf.p["display_type"] != "no_disp":
-      image_pred = utils.draw_preds(image, boxes, classes)
-    
-    #use normalized coords for dsm
+    boxes = utils.organize_dets(boxes)
+
+    #if anything looks like path marker, find heading
     for box in boxes:
-      box[0][0] = float(box[0][0] / conf.p["res_process"][0])
-      box[0][1] = float(box[0][1] / conf.p["res_process"][1])
-      box[0][2] = float(box[0][2] / conf.p["res_process"][0])
-      box[0][3] = float(box[0][3] / conf.p["res_process"][1])
+      box[1][3] = conf.p["darknet_id"]
+
+      heading = 0
+      if classes[box[1][0]] == "marker":
+        heading, image_orange = utils.find_heading(image, box[0])
+        box[1][2] = heading
+
+    #calc normalized coords
+    for box in boxes:
+      box[0][0] = float(box[0][0] / width)
+      box[0][1] = float(box[0][1] / height)
+      box[0][2] = float(box[0][2] / width)
+      box[0][3] = float(box[0][3] / height)
+
+    #publish or print detections while boxes are in normalized coords
+    if conf.p["using_dsm"]:
+      utils.pub_detections(client, conf.p["dsm_buffer_name"], boxes, classes)
+    else:
+      utils.print_detections(boxes, classes)
+
+    #convert image and boxes res to res_display
+    image_draw = cv.resize(image, conf.p["res_display"], interpolation = cv.INTER_CUBIC)
+    for box in boxes:
+      box[0][0] = int(box[0][0] * conf.p["res_display"][0])
+      box[0][1] = int(box[0][1] * conf.p["res_display"][1])
+      box[0][2] = int(box[0][2] * conf.p["res_display"][0])
+      box[0][3] = int(box[0][3] * conf.p["res_display"][1])
+     
+    #use res_display coords for drawing
+    image_pred = utils.draw_preds(image_draw, boxes, classes)
     
     t, _ = yolo[model_id].getPerfProfile()
-    print("[yolo] res: %10s model_id: %d time: %.2f cam_id: %s pred_id: %5d.jpg" % (conf.p["res_model"][model_id], model_id, t / cv.getTickFrequency(), image_id, conf.p["darknet_id"]))
-    
+    print("[yolo] model: %d %10s t: %.2f cam: %9s pred: %5d.jpg" % (model_id, conf.p["res_model"][model_id], t / cv.getTickFrequency(), image_id, conf.p["darknet_id"]))
+     
     #publish to dsm or print detections
-    if conf.p["using_dsm"]:
-      pub_detections(client, boxes)
-    else:
-      print_detections(boxes)
-    
-  return len(boxes), image_pred
-
-"""[print_detections]----------------------------------------------------------
-  Print deetections from YOLOv3
-----------------------------------------------------------------------------"""
-def print_detections(boxes):
-  for b in boxes:
-    cls = b[1][0]
-    cnf = b[1][1]
-    x = b[0][0] + b[0][2] / 2.0
-    y = b[0][1] + b[0][3] / 2.0
-    w = b[0][2]
-    h = b[0][3]
-    print("[det] | %7s %.2f |\txywh: %.2f %.2f %.2f %.2f" % (classes[cls], cnf, x, y, w, h))
-
-"""[pub_detections]------------------------------------------------------------
-  Publishes detections from YOLOv3 to DSM
-----------------------------------------------------------------------------"""
-def pub_detections(client, boxes):
-  #init everything to 0
-  d_a = DetectionArray()
-  for i in range(8):
-    d_a.detections[i].cls = 255
-    d_a.detections[i].x = 0
-    d_a.detections[i].y = 0
-    d_a.detections[i].w = 0
-    d_a.detections[i].h = 0
-    d_a.detections[i].size = 0
-
-  #if detections exist, fill them in
-  for i, b in enumerate(boxes):
-    d = Detection()
-    d.cls = int(b[1][0])
-    d.cnf = b[1][1]
-    d.x = float(b[0][0] + b[0][2] / 2.0)
-    d.y = b[0][1] + b[0][3] / 2.0
-    d.w = b[0][2]
-    d.h = b[0][3]
-
-    #TODO currently size is just height. set to w*h or remove in future
-    d.size = b[0][3]
-    
-    d_a.detections[i] = d
-
-    print("[pub] | %7s %.2f |\txywh: %.2f %.2f %.2f %.2f" % (classes[d.cls], d.cnf, d.x, d.y, d.w, d.h))
+    return len(boxes), image_pred, image_orange
   
-  client.setLocalBufferContents(conf.p["dsm_buffer_name"], pack(d_a))
-
 '''[main]----------------------------------------------------------------------
   
 ----------------------------------------------------------------------------'''
@@ -146,14 +121,14 @@ def main():
   #init dsm client and buffers
   client = None
   if conf.p["using_dsm"]:
-    print("[init] Initializing DSM client")
+    print("[init] Initializing DSM")
     client = pydsm.Client(conf.p["dsm_server_id"], conf.p["dsm_client_id"], True)
-
-    print("[init] Initializing local buffers")
     client.registerLocalBuffer(conf.p["dsm_buffer_name"], sizeof(DetectionArray), False)
-    
+    time.sleep(1)
+
     print("[init] DSM init complete")
   #init camera
+  c_t = None
   if conf.p["using_camera"]:
     print("[init] Camera init start")
     try:
@@ -165,7 +140,7 @@ def main():
       print("[main] [error]: " + str(e))
     print("[init] Camera init complete")
   
-  if conf.p["display_type"] != "no_disp":
+  if conf.p["using_disp"]:
     d_t = display_worker.display_thread(conf, c_t)
     d_t.start()
 
@@ -208,15 +183,18 @@ def main():
         image_id = image_list[read_pos]
 
       #handle processing and publishing
-      dets, image_pred = process_image(image, client, model_id, image_id)
+      dets, image_pred, image_orange = process_image(image, client, model_id, image_id)
       
       if conf.p["using_camera"]:
         cv.imwrite(os.path.join(c_t.image_full_dir, "darknet", str(conf.p["darknet_id"]) + ".jpg"), image_pred)
         conf.p["darknet_id"] += 1
       
       #update predictions on display
-      if conf.p["display_type"] != "no_disp":
-        d_t.images[1] = image_pred
+      if conf.p["using_disp"]:
+        if image_pred is not None:
+          d_t.images[1] = image_pred
+        if image_orange is not None:
+          d_t.images[2] = image_orange
         
       #adaptive resolution
       if dets == 0:
@@ -225,6 +203,8 @@ def main():
         model_id = max(model_id - 1, 0)
   except KeyboardInterrupt:
     print("[main] Ctrl + c detected, breaking")
+  except Exception as e:
+    print("[main] [error] %s" % (str(e)))
 
 #TODO merge with main init
 """[init]----------------------------------------------------------------------
@@ -243,9 +223,9 @@ if conf.p["using_camera"]:
   from picamera import PiCamera
   import capture_worker
 
-if conf.p["display_type"] != "no_disp":
+if conf.p["using_disp"]:
   import display_worker
-  cv.namedWindow("[stacked]", cv.WINDOW_NORMAL)
+  #cv.namedWindow("[stacked]", cv.WINDOW_NORMAL)
 
 if conf.p["using_darknet"]:
   conf.p["darknet_id"] = 0
