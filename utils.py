@@ -134,12 +134,12 @@ def find_heading(image, box):
 '''[print_detections]----------------------------------------------------------
   Print deetections from YOLOv3
 ----------------------------------------------------------------------------'''
-def print_detections(boxes, classes):
+def print_detections(pred_id, boxes, classes):
   for b in boxes:
     cls = b[1][0]
     cnf = b[1][1]
     cxt = b[1][2]
-    idx = b[1][3]
+    idx = pred_id
 
     x = b[0][0] + b[0][2] / 2.0
     y = b[0][1] + b[0][3] / 2.0
@@ -166,7 +166,7 @@ def print_detections(boxes, classes):
 '''[pub_detections]------------------------------------------------------------
   Publishes detections from YOLOv3 to DSM
 ----------------------------------------------------------------------------'''
-def pub_detections(client, buffer_name, boxes, classes):
+def pub_detections(client, buffer_name, pred_id, boxes, classes):
   #init everything to 0
   d_a = DetectionArray()
   for i in range(8):
@@ -177,7 +177,7 @@ def pub_detections(client, buffer_name, boxes, classes):
     d_a.detections[i].w = 0
     d_a.detections[i].h = 0
     d_a.detections[i].cxt = 0
-    d_a.detections[i].id = 0
+    d_a.detections[i].id = pred_id
 
   #if detections exist, fill them in
   for i, b in enumerate(boxes):
@@ -187,7 +187,7 @@ def pub_detections(client, buffer_name, boxes, classes):
     
     if b[1][2] is not None:
       d.cxt = b[1][2]
-    d.id = b[1][3]
+    d.id = pred_id
 
     d.x = b[0][0] + b[0][2] / 2.0
     d.y = b[0][1] + b[0][3] / 2.0

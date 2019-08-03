@@ -77,8 +77,6 @@ def process_image(image, client, model_id=0, image_id=""):
 
     #if anything looks like path marker, find heading
     for box in boxes:
-      box[1][3] = conf.p["pred_id"]
-
       heading = 0
       if classes[box[1][0]] == "marker":
         heading, image_orange = utils.find_heading(image, box[0])
@@ -93,9 +91,9 @@ def process_image(image, client, model_id=0, image_id=""):
 
     #publish or print detections while boxes are in normalized coords
     if conf.p["using_dsm"]:
-      utils.pub_detections(client, conf.p["dsm_buffer_name"], boxes, classes)
+      utils.pub_detections(client, conf.p["dsm_buffer_name"], conf.p["pred_id"], boxes, classes)
     else:
-      utils.print_detections(boxes, classes)
+      utils.print_detections(conf.p["pred_id"], boxes, classes)
 
     #convert image and boxes res to res_display
     image_draw = cv.resize(image, conf.p["res_display"], interpolation = cv.INTER_CUBIC)
@@ -179,10 +177,12 @@ def main():
       #handle processing and publishing
       dets, image_pred, image_orange = process_image(image, client, model_id, image_id)
       
-      if conf.p["using_camera"]:
+      if conf.p["using_camera"] and conf.p["using_yolo"]:
         cv.imwrite(os.path.join(c_t.image_full_dir, conf.p["pred_dir"], str(conf.p["pred_id"]) + ".jpg"), image_pred)
+
+      if conf.p["using_yolo"]:
         conf.p["pred_id"] += 1
-      
+
       #update predictions on display
       if conf.p["using_disp"]:
         if image_pred is not None:
@@ -197,8 +197,8 @@ def main():
         model_id = max(model_id - 1, 0)
   except KeyboardInterrupt:
     print("[main] Ctrl + c received")
-  except Exception as e:
-    print("[main] [error] %s" % (str(e)))
+  #except Exception as e:
+  #  print("[main] [error] %s" % (str(e)))
 
 #TODO merge with main init
 '''[init]----------------------------------------------------------------------
